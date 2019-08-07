@@ -248,29 +248,106 @@ class oki66207_processor_t(idaapi.processor_t):
     # Registers definition
     #
 
+# -----------------------------------------------------------------------------------------------------------------------------------------------------
+
+IDEF_MAGIC_VALUE = 0
+IDEF_MASK        = 1
+IDEF_MNEMONIC    = 2
+IDEF_OP_TYPE     = 3
+IDEF_IDA_FEATURE = 4
+IDEF_COMMENT     = 5
+
+INSN_DEFS = [
+	(0x0000, 0xffff, 'nop',     HTOP_NONE,   0,                       'Nothing'),
+	(0x0001, 0xffff, 'clrwdt',  HTOP_NONE,   0,                       'Pre-Clear Watchdog Timer'),
+	(0x0002, 0xffff, 'halt',    HTOP_NONE,   CF_STOP,                 'Enter power down mode'),
+	(0x0003, 0xffff, 'ret',     HTOP_NONE,   CF_STOP,                 'Return from subroutine'),
+	(0x0004, 0xffff, 'reti',    HTOP_NONE,   CF_STOP,                 'Return from interrupt'),
+	(0x0005, 0xffff, 'clrwdt2', HTOP_NONE,   0,                       'Pre-Clear Watchdog Timer 2'),
+	(0x0080, 0xbf80, 'mov',     HTOP_DATA_A, CF_CHG1|CF_USE2,         '[m] := A'),
+	(0x0100, 0xbf80, 'cpla',    HTOP_DATA,   CF_USE1,                 'A := ~[m]'),
+	(0x0180, 0xbf80, 'cpl',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] := ~[m]'),
+	(0x0200, 0xbf80, 'sub',     HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A -= [m]'),
+	(0x0280, 0xbf80, 'subm',    HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2, '[m] := A - [m]'),
+	(0x0300, 0xbf80, 'add',     HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A += [m]'),
+	(0x0380, 0xbf80, 'addm',    HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2|CF_JUMP, '[m] += A'),
+	(0x0400, 0xbf80, 'xor',     HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A ^= [m]'),
+	(0x0480, 0xbf80, 'xorm',    HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2, '[m] ^= A'),
+	(0x0500, 0xbf80, 'or',      HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A |= [m]'),
+	(0x0580, 0xbf80, 'orm',     HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2, '[m] |= A'),
+	(0x0600, 0xbf80, 'and',     HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A &= [m]'),
+	(0x0680, 0xbf80, 'andm',    HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2, '[m] &= A'),
+	(0x0700, 0xbf80, 'mov',     HTOP_A_DATA, CF_CHG1|CF_USE2,         'A := [m]'),
+	(0x1000, 0xbf80, 'sza',     HTOP_DATA,   CF_USE1,                 'A := [m]; if (A == 0) skip next'),
+	(0x1080, 0xbf80, 'sz',      HTOP_DATA,   CF_USE1,                 'if ([m] == 0) skip next'),
+	(0x1100, 0xbf80, 'swapa',   HTOP_DATA,   CF_USE1,                 'A := swapNibbles([m])'),
+	(0x1180, 0xbf80, 'swap',    HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] := swapNibbles([m])'),
+	(0x1200, 0xbf80, 'sbc',     HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A ^= [m]'),
+	(0x1280, 0xbf80, 'sbcm',    HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2, '[m] ^= A'),
+	(0x1300, 0xbf80, 'adc',     HTOP_A_DATA, CF_USE1|CF_CHG1|CF_USE2, 'A ^= [m]'),
+	(0x1380, 0xbf80, 'adcm',    HTOP_A_DATA, CF_USE1|CF_USE2|CF_CHG2, '[m] ^= A'),
+	(0x1400, 0xbf80, 'inca',    HTOP_DATA,   CF_USE1,                 'A := [m] + 1'),
+	(0x1480, 0xbf80, 'inc',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m]++'),
+	(0x1500, 0xbf80, 'deca',    HTOP_DATA,   CF_USE1,                 'A := [m] - 1'),
+	(0x1580, 0xbf80, 'dec',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m]--'),
+	(0x1600, 0xbf80, 'siza',    HTOP_DATA,   CF_USE1,                 'A := [m] + 1; if (A == 0) skip next'),
+	(0x1680, 0xbf80, 'siz',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m]++; if ([m] == 0) skip next'),
+	(0x1700, 0xbf80, 'sdza',    HTOP_DATA,   CF_USE1,                 'A := [m] - 1; if (A == 0) skip next'),
+	(0x1780, 0xbf80, 'sdz',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m]--; if ([m] == 0) skip next'),
+	(0x1800, 0xbf80, 'rla',     HTOP_DATA,   CF_USE1,                 'A := [m] rotLeft 1'),
+	(0x1880, 0xbf80, 'rl',      HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] rotLeft 1'),
+	(0x1900, 0xbf80, 'rra',     HTOP_DATA,   CF_USE1,                 'A := [m] rotRight 1'),
+	(0x1980, 0xbf80, 'rr',      HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] rotRight 1'),
+	(0x1a00, 0xbf80, 'rlca',    HTOP_DATA,   CF_USE1,                 'A := [m] rotLeft 1   (with carry)'),
+	(0x1a80, 0xbf80, 'rlc',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] rotLeft 1   (with carry)'),
+	(0x1b00, 0xbf80, 'rrca',    HTOP_DATA,   CF_USE1,                 'A := [m] rotRight 1  (with carry)'),
+	(0x1b80, 0xbf80, 'rrc',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] rotRight 1  (with carry)'),
+	(0x1d00, 0xbf80, 'tabrd',   HTOP_DATA,   CF_CHG1,                 'TBLH:[m] := program[TBHP:TBLP]'),
+	(0x1e80, 0xbf80, 'daa',     HTOP_DATA,   CF_CHG1,                 '[m] = bcdAdjust(A)'),
+	(0x1f00, 0xbf80, 'clr',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] := 0'),
+	(0x1f80, 0xbf80, 'set',     HTOP_DATA,   CF_USE1|CF_CHG1,         '[m] := FFh'),
+	(0x0900, 0xff00, 'ret',     HTOP_A_IMM,  CF_CHG1|CF_USE2|CF_STOP, 'A := imm; return'),
+	(0x0a00, 0xff00, 'sub',     HTOP_A_IMM,  CF_USE1|CF_CHG1|CF_USE2, 'A -= imm'),
+	(0x0b00, 0xff00, 'add',     HTOP_A_IMM,  CF_USE1|CF_CHG1|CF_USE2, 'A += imm'),
+	(0x0c00, 0xff00, 'xor',     HTOP_A_IMM,  CF_USE1|CF_CHG1|CF_USE2, 'A ^= imm'),
+	(0x0d00, 0xff00, 'or',      HTOP_A_IMM,  CF_USE1|CF_CHG1|CF_USE2, 'A |= imm'),
+	(0x0e00, 0xff00, 'and',     HTOP_A_IMM,  CF_USE1|CF_CHG1|CF_USE2, 'A &= imm'),
+	(0x0f00, 0xff00, 'mov',     HTOP_A_IMM,  CF_CHG1|CF_USE2,         'A := imm'),
+	(0x2000, 0x3800, 'call',    HTOP_ADDR,   CF_CALL|CF_USE1,         'call addr'),
+	(0x2800, 0x3800, 'jmp',     HTOP_ADDR,   CF_STOP|CF_USE1,         'jump to addr'),
+	(0x3000, 0xbc00, 'set',     HTOP_BIT,    CF_CHG1|CF_USE2,         '[m] := 1'),
+	(0x3400, 0xbc00, 'clr',     HTOP_BIT,    CF_CHG1|CF_USE2,         '[m] := 0'),
+	(0x3800, 0xbc00, 'snz',     HTOP_BIT,    CF_USE1|CF_USE2,         'if ([m] != 0) skip next'),
+	(0x3c00, 0xbc00, 'sz',      HTOP_BIT,    CF_USE1|CF_USE2,         'if ([m] == 0) skip next'),
+]
+
     def init_registers(self):
         """This function parses the
         register table and creates
         corresponding ireg_XXX constants"""
-        # register names
+        # register names (non memory mapped)
         self.reg_names = [
-            "acc",
-            "psw",
+            # "acc",
+            #"psw",
             "pc",
-            "lrb",
-            "ssp",
+            # "lrb",
+            # "ssp",
             "x1",
             "x2",
             "dp",
             "usp",
             "r0",
             "r1",
+            "er0",
             "r2",
             "r3",
+            "er1",
             "r4",
             "r5",
+            "er2",
             "r6",
             "r7",
+            "er3",
             # Fake segment registers
             "CS",
             "DS"
@@ -291,6 +368,18 @@ class oki66207_processor_t(idaapi.processor_t):
         self.reg_code_sreg = self.ireg_CS
         # number of DS register
         self.reg_data_sreg = self.ireg_DS
+
+    def init_instructions():
+        # TODO: Verify
+        self.instruc = []
+        for insn in INSN_DEFS:
+            self.instruc.append({'name': insn[IDEF_MNEMONIC], 'feature': insn[IDEF_IDA_FEATURE]})
+        self.instruc_end = len(INSN_DEFS)
+        self.icode_return = 3 # TODO: fix that
+        pass
+
+    def init_registers():
+        pass
 
     def __init__(self):
         idaapi.processor_t.__init__(self)
