@@ -24,6 +24,18 @@ from ida_xref import *
 import ida_frame
 import idc
 
+'''
+Misc information from 66201 spec:
+    - Uses DATA and CODE segmentation
+    - DD (data bit) is 1 if using WORDS or 0 if using BYTES
+    - 66207.op format (x1     -x2x3 x4):
+      - x1: mnemonic
+      - x2: signed/unsigned ?
+      - x3: instruction type ?
+      - x4: opcodes
+
+'''
+
 class oki66207_processor_t(idaapi.processor_t):
     # IDA id (> 0x8000 for third party)
     id = 0x8000 + 0x1234
