@@ -72,23 +72,24 @@ def to_control_flow_flag(flag):
 
 def pprint(output):
     for i in range(len(output)):
+        #print(output[i][1][0]) # opcode
         opcodes = ""
         for op in output[i][1]:
             try:
                 if type(op) != int and ("imm" in op or "rel" in op):
                     opcodes += "{0}, ".format(op)
                 else:
-                    opcodes += "{0}, ".format('{:04x}'.format(op))
+                    opcodes += "{0}, ".format('0x{:04x}'.format(op))
             except Exception as e:
                 print("!!!!!!!", e, output[i])
                 opcodes += "{0}, ".format(op)
         # Opcodes, number of opcodes in total, DD flag, control flow (see explanation on top), mnemonic
         dd_flag = to_dd_flag(output[i][2][0])
         cf_flag = to_control_flow_flag(output[i][2][1])
-        string = "(" + opcodes + str(len(output[i][1]) - 1) + ", " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\"" + "),"
+        string = "    ([" + opcodes + "], " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\"" + "),"
         print(string)
 
-    print(len(output))
+    #print(len(output))
 
 with open(sys.argv[1], "r") as f:
     for line in f.readlines():
