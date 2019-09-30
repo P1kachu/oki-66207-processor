@@ -5,7 +5,7 @@ from struct import unpack as up
 from ctypes import *
 
 FIRMWARE_SIZE = 32768 # TODO: Verify
-HEADER_SIZE = 0x40
+HEADER_SIZE = 0x44
 FORMAT_NAME = "OKI 66207"
 
 def accept_file(li, n):
@@ -29,9 +29,22 @@ def load_file(li, neflags, fmt):
 
     # TODO: what follows
 
+    filesize = li.size()
+    print("Filesize: {0} ({1})".format(filesize, hex(filesize)))
+
     set_processor_type("oki66207", SETPROC_ALL|SETPROC_FATAL)
     set_compiler_id(COMP_GNU)
 
+    cvar.inf.beginEA = cvar.inf.startIP = HEADER_SIZE
+
+    set_selector(1, 0);
+
+    flags = ADDSEG_NOTRUNC|ADDSEG_OR_DIE
+
+    AddSegEx(0, filesize, 0, 1, saRelPara, scPub, flags)
+    li.file2base(0, 0, filesize, 0)
+
+    print("Honda ECU (OBD1) loaded".format(li.size()))
     return True
 
 

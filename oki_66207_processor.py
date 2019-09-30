@@ -2624,26 +2624,53 @@ class oki66207_processor_t(idaapi.processor_t):
         ([0x00ff, ], DD_FLAG_UNUSED, CF_FLAG_INDIRECT_JUMP, "brk"),
     ]
 
-    def notify_emu(self, insn):
-        print("emu: {0}".format(insn))
-        return True
+    def notify_ana(self, insn):
+        insn_size = 0
+        bytecode = get_bytes(insn.ea, 1)
+
+        print("notify_ana 1: insn @ {0}".format(hex(insn.ea)))
+
+        #operands = [insn[i] for i in xrange(1, 6)]
+        #for o in operands:
+        #    o.type = o_void
+
+        current = None
+        index = -1
+
+        for i, definition in enumerate(self.INSN_DEFS):
+            if definition[0][0] == ord(bytecode[0]):
+                current = definition
+                index = i
+                break
+
+        if current == None:
+            print("ERROR - notify_ana: Instruction not found: {0}".format([hex(ord(x)) for x in bytecode]))
+            return 0 # Instruction not found
+
+        print("notify_ana 2: current = {0}".format(current))
+
+        insn.itype = index
+        print("notify_ana 3: itype = {0}".format(insn.itype))
+
+        insn_size = len(current[0])
+        print("notify_ana 4: insn_size = {0}".format(insn_size))
+
+        return insn_size
 
     def notify_out_insn(self, ctx):
+        print("notify_out_insn 1: ctx = {0}".format(ctx))
+        insn = ctx.insn
+        ctx.out_mnem()
         return True
 
     def notify_out_operand(self, ctx, op):
+        print("notify_out_operand 1: ctx = {0}, op = {1}".format(ctx, op))
         return True
 
-    def notify_ana(self, insn):
-        print("ana: {0}".format(insn))
+    def notify_emu(self, insn):
+        print("notify_emu 1: insn = {0}".format(insn))
         return True
 
-    def notify_asm(self, ea, cs, ip, use32, line):
-        print("asm: {0}".format(ea))
-        return True
-
-    def notify_func_bounds(self, code, func_ea, max_func_end_ea):
-        return FIND_FUNC_OK
 
     def init_instructions(self):
         # TODO: Verify
