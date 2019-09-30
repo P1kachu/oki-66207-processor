@@ -76,7 +76,7 @@ def pprint(output):
         opcodes = ""
         for op in output[i][1]:
             try:
-                if type(op) != int and ("imm" in op or "rel" in op):
+                if type(op) != int and ("IMM" in op or "rel" in op):
                     opcodes += "{0}, ".format(op)
                 else:
                     opcodes += "{0}, ".format('0x{:04x}'.format(op))
@@ -86,7 +86,7 @@ def pprint(output):
         # Opcodes, number of opcodes in total, DD flag, control flow (see explanation on top), mnemonic
         dd_flag = to_dd_flag(output[i][2][0])
         cf_flag = to_control_flow_flag(output[i][2][1])
-        string = "    ([" + opcodes + "], " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\"" + "),"
+        string = "        ([" + opcodes + "], " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\"" + "),"
         print(string)
 
     #print(len(output))
@@ -103,13 +103,14 @@ with open(sys.argv[1], "r") as f:
         #continue
         initial_line = line
         if "N'" in line:
-            line = line.replace("N8", "imm8a").replace("NL,NH", "imm16La,imm16Ha")
-            line = line.replace("N'8", "imm8b").replace("N'L,N'H", "imm16Lb,imm16Hb")
+            line = line.replace("N8", "IMM8a").replace("NL,NH", "IMM16La,IMM16Ha")
+            line = line.replace("N'8", "IMM8b").replace("N'L,N'H", "IMM16Lb,IMM16Hb")
         else:
-            line = line.replace("N8", "imm8").replace("NL,NH", "imm16L,imm16H")
-        line = line.replace("N16", "imm16").replace("N'16", "imm16b")
-        line = line.replace("S8", "signedimm8")
-        line = line.replace("addr16", "imm16").replace("addrh", "imm16H").replace("addrl", "imm16L")
+            line = line.replace("N8", "IMM8").replace("NL,NH", "IMM16L,IMM16H")
+        line = line.replace("N16", "IMM16").replace("N'16", "IMM16b")
+        line = line.replace("S8", "SIGNEDIMM8")
+        line = line.replace("addr16", "IMM16").replace("addrh", "IMM16H").replace("addrl", "IMM16L")
+        line = line.replace("rel8", "REL8")
         n_in_opcode = False # True if the line represents the same operation on all registers
         _, instruction, flags_affecting_execution, opcodes, _ = re.split(r"^([^-]*)-(..) (.*)$", line)
         opcodes = opcodes.split(",")
