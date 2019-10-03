@@ -5,7 +5,7 @@ from struct import unpack as up
 from ctypes import *
 
 FIRMWARE_SIZE = 32768 # TODO: Verify
-HEADER_SIZE = 0x44
+HEADER_SIZE = 0x8000
 FORMAT_NAME = "Honda OBD1 ECU (B series)"
 
 def accept_file(li, n):
@@ -35,7 +35,7 @@ def load_file(li, neflags, fmt):
     set_processor_type("oki66207", SETPROC_ALL|SETPROC_FATAL)
     set_compiler_id(COMP_GNU)
 
-    cvar.inf.beginEA = cvar.inf.startIP = HEADER_SIZE + 12 # Debug
+    cvar.inf.beginEA = cvar.inf.startIP = HEADER_SIZE + 0x10
 
     #set_selector(1, 0);
 
