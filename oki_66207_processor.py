@@ -2624,24 +2624,19 @@ class oki66207_processor_t(idaapi.processor_t):
         ([0x00ff, ], DD_FLAG_UNUSED, CF_FLAG_INDIRECT_JUMP, "brk"),
     ]
 
+    def _get_instruction_from_op(op):
+        for i, definition in enumerate(self.INSN_DEFS):
+            if definition[0][0] == ord(bytecode[0]):
+                return (definition, i)
+
+        return None
+
     def notify_ana(self, insn):
-        insn_size = 0
         bytecode = get_bytes(insn.ea, 1)
 
         print("notify_ana 1: insn @ {0}".format(hex(insn.ea)))
 
-        #operands = [insn[i] for i in xrange(1, 6)]
-        #for o in operands:
-        #    o.type = o_void
-
-        current = None
-        index = -1
-
-        for i, definition in enumerate(self.INSN_DEFS):
-            if definition[0][0] == ord(bytecode[0]):
-                current = definition
-                index = i
-                break
+        current, index = _get_instruction_from_op(bytecode)
 
         if current == None:
             print("ERROR - notify_ana: Instruction not found: {0}".format([hex(ord(x)) for x in bytecode]))
@@ -2650,17 +2645,17 @@ class oki66207_processor_t(idaapi.processor_t):
         print("notify_ana 2: current = {0}".format(current))
 
         insn.itype = index
-        print("notify_ana 3: itype = {0}".format(insn.itype))
+        insn.size = len(current[0])
+        print("notify_ana 4: insn: {0} (size: {1})".format(insn.itype, insn.size))
 
-        insn_size = len(current[0])
-        print("notify_ana 4: insn_size = {0}".format(insn_size))
-
-        return insn_size
+        return insn.size
 
     def notify_out_insn(self, ctx):
         print("notify_out_insn 1: ctx = {0}".format(ctx))
         insn = ctx.insn
         ctx.out_mnem()
+        ctx.set_gen_cmt()
+	ctx.flush_outbuf()
         return True
 
     def notify_out_operand(self, ctx, op):
@@ -2673,12 +2668,12 @@ class oki66207_processor_t(idaapi.processor_t):
 
 
     def init_instructions(self):
-        # TODO: Verify
         self.instruc = []
         for insn in self.INSN_DEFS:
             self.instruc.append({'name': insn[self.IDEF_MNEMONIC], 'feature': 0}) # Replace "0" in feature
+        self.instruc_start = 0
         self.instruc_end = len(self.INSN_DEFS)
-        self.icode_return = 3 # TODO: fix that
+        self.icode_return = 0 # TODO: Check what would be good
         pass
 
     def init_registers(self):
