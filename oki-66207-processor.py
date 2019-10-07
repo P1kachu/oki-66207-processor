@@ -33,6 +33,11 @@ Misc information from 66201 spec:
     - DD (data bit) is 1 if using WORDS or 0 if using BYTES
     - 66207.op format (x1     -x2x3 x4): See ./helpers/op_to_array.py
 
+I used nios2.py and ht68fb560.py as basis for this file. It was my first time
+creating a processor module so there might be obvious mistake that I didn't
+see. Feel free to submit corrections. The target for this module was to be able
+to reverse 90's/00's Honda ECUs, more specifically Integra Type R's. So most
+testing will be done with such firmwares.
 '''
 
 class oki66207_processor_t(idaapi.processor_t):
@@ -224,7 +229,7 @@ class oki66207_processor_t(idaapi.processor_t):
     # ----------------------------------------------------------------------
     # Special flags used by the decoder, emulator and output
     #
-    FL_SIGNED    = 0x01        # value/address is signed; output as such
+    FL_SIGNED    = 0x01        # value/address is signed, output as such
     FL_VAL32    = 0x02        # 32 bit value / offset from low and high parts
     FL_SUB    = 0x04        # subtract offset from base
 
@@ -318,10 +323,28 @@ class oki66207_processor_t(idaapi.processor_t):
 		    insn.Operands[op_idx].dtype = dt_word
 		    insn.Operands[op_idx].value = (params[p + 1] << 8) + params[p]
                     p += 1
+
+                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16H):
+
+                    if current[oki66207.IDEF_OPCODES][p + 2] in (oki66207.IMM16L):
+                        print("ERROR - _fill_operands: IMM16H found without IMM16L: {0}".format(hex(ea), current, [hex(x) for x in params]))
+                        return 1
+
+                    insn.Operands[op_idx].type = o_near
+		    insn.Operands[op_idx].dtype = dt_word
+		    insn.Operands[op_idx].value = (params[p] << 8) + params[p + 1]
+                    p += 1
+
+                else:
+                    print("ERROR - _fill_operands: Unknown operand: {0}".format(current[oki66207.IDEF_OPCODES][p + 1]))
+                    return 1
+
                 op_idx += 1
             p += 1
 
         insn.Operands[0].value = op_idx
+
+        return 0
 
 
     def notify_ana(self, insn):
@@ -340,7 +363,8 @@ class oki66207_processor_t(idaapi.processor_t):
 
         insn.itype = index
 
-        self._fill_operands(insn.ea, current, insn)
+        if self._fill_operands(insn.ea, current, insn):
+            exit(0)
 
         insn.size = len(current[0])
         print("        insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
@@ -430,10 +454,40 @@ class oki66207_processor_t(idaapi.processor_t):
         # number of DS register
         self.reg_data_sreg = self.ireg_DS
 
+    def init_memory(self):
+        table = [
+            (0x00, "int_start"),
+	    (0x02, "int_break"),
+	    (0x04, "int_WDT"),
+	    (0x06, "int_NMI"),
+	    (0x08, "int_INT0"),
+	    (0x0a, "int_serial_rx"),
+	    (0x0c, "int_serial_tx"),
+	    (0x0e, "int_serial_rx_BRG"),
+	    (0x10, "int_timer_0_overflow"),
+	    (0x12, "int_timer_0"),
+	    (0x14, "int_timer_1_overflow"),
+	    (0x16, "int_timer_1"),
+	    (0x18, "int_timer_2_overflow"),
+	    (0x1a, "int_timer_2"),
+	    (0x1c, "int_timer_3_overflow"),
+	    (0x0e, "int_timer_3"),
+	    (0x20, "int_a2d_finished"),
+	    (0x22, "int_PWM_timer"),
+	    (0x24, "int_serial_tx_BRG"),
+	    (0x26, "int_INT1"),
+        ]
+
+        for elt in table:
+            MakeWord(elt[0])
+            MakeNameEx(elt[0], elt[1], idc.SN_NOWARN | idc.SN_NOCHECK)
+
     def __init__(self):
         idaapi.processor_t.__init__(self)
         self.init_instructions()
         self.init_registers()
+        selt.init_memory()
+
 
 def PROCESSOR_ENTRY():
     # Required for each Processor module script. Returns an instance of a class

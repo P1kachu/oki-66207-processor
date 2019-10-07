@@ -38,7 +38,7 @@ class oki66207:
         ([0x0002, ], DD_FLAG_UNUSED, CF_FLAG_INDIRECT_JUMP, "rti"),
         ([0x0003, IMM16L, IMM16H, ], DD_FLAG_UNUSED, CF_FLAG_JUMP, "jmp IMM16"),
         ([0x0004, ], DD_FLAG_UNUSED, CF_FLAG_NEXT, "smovi"),
-        ([0x0005, ], 0, 0, "ILLEGAL"),
+        ([0x0005, ], 0, 0, "ILLEGAL"), # Placeholder
         ([0x0008, ], DD_FLAG_ONE, CF_FLAG_NEXT, "add a, er0"),
         ([0x0008, ], DD_FLAG_ZERO, CF_FLAG_NEXT, "addb a, r0"),
         ([0x0009, ], DD_FLAG_ONE, CF_FLAG_NEXT, "add a, er1"),

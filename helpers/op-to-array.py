@@ -86,12 +86,14 @@ def pprint(output):
         # Opcodes, number of opcodes in total, DD flag, control flow (see explanation on top), mnemonic
         dd_flag = to_dd_flag(output[i][2][0])
         cf_flag = to_control_flow_flag(output[i][2][1])
-        string = "        ([" + opcodes + "], " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\"" + "),"
+        ida_features = output[i][4]
+        string = "        ([" + opcodes + "], " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\", " + ida_features +"),"
         print(string)
 
     #print(len(output))
 
 with open(sys.argv[1], "r") as f:
+    output.append(("ILLEGAL", [0x5], "UN", "Placeholder", "CF_NONE")) # Debug for now
     for line in f.readlines():
 
         line = line.rstrip().replace("\t", "")
@@ -112,7 +114,11 @@ with open(sys.argv[1], "r") as f:
         line = line.replace("addr16", "IMM16").replace("addrh", "IMM16H").replace("addrl", "IMM16L")
         line = line.replace("rel8", "REL8")
         n_in_opcode = False # True if the line represents the same operation on all registers
-        _, instruction, flags_affecting_execution, opcodes, _ = re.split(r"^([^-]*)-(..) (.*)$", line)
+        try:
+            _, instruction, flags_affecting_execution, opcodes, ida_features, _ = re.split(r"^([^-]*)-(..) (.*) -(.*)$", line)
+        except:
+            continue
+        ida_features = ida_features.replace("CF_NONE", "0")
         opcodes = opcodes.split(",")
         opcodes_tmp = []
         for opcode in opcodes:
@@ -132,8 +138,7 @@ with open(sys.argv[1], "r") as f:
         instruction = instruction.lower()
         instruction = instruction.replace("j ", "jmp ") if instruction.startswith("j ") else instruction
 
-
-        if n_in_opcode:
+        if 0 and n_in_opcode:
             #print()
             if ".n" in instruction:
                 nb = 8
@@ -158,11 +163,11 @@ with open(sys.argv[1], "r") as f:
                         except Exception as e:
                             new_opcodes.append(opcode)
                 #print("   - {0} -- {1} -- {2}".format(new_instruction, hex(new_opcodes[0]).upper(), new_opcodes[1:]))
-                output.append((new_instruction, new_opcodes, flags_affecting_execution, initial_line))
+                output.append((new_instruction, new_opcodes, flags_affecting_execution, initial_line, ida_features))
 
 
         else:
             #print("Normal")
-            output.append((instruction, opcodes, flags_affecting_execution, initial_line))
+            output.append((instruction, opcodes, flags_affecting_execution, initial_line, ida_features))
 
     pprint(output)
