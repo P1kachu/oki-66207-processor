@@ -2,28 +2,6 @@
 # (c) Stanislas Lejay
 #
 
-import sys
-import idaapi
-from idaapi import *
-
-#For Version 7
-from ida_auto import *
-from ida_bytes import *
-from ida_funcs import *
-from ida_idaapi import *
-from ida_idp import *
-from ida_lines import *
-from ida_nalt import *
-from ida_name import *
-from ida_netnode import *
-from ida_offset import *
-from ida_problems import *
-from ida_segment import *
-from ida_ua import *
-from ida_xref import *
-import ida_frame
-import idc
-
 # For lisibility
 from oki66207 import *
 
@@ -278,7 +256,7 @@ class oki66207_processor_t(idaapi.processor_t):
                 if nb_of_params:
                     params = get_bytes(ea + 1, nb_of_params)
                     for p in range(nb_of_params):
-                        print(definition[oki66207.IDEF_OPCODES][p + 1],  ord(params[p]))
+                        #print(definition[oki66207.IDEF_OPCODES][p + 1],  ord(params[p]))
                         if not self._is_imm(definition[oki66207.IDEF_OPCODES][p + 1]) and definition[oki66207.IDEF_OPCODES][p + 1] != ord(params[p]):
                             match = False
                             break
@@ -348,12 +326,11 @@ class oki66207_processor_t(idaapi.processor_t):
 
 
     def notify_ana(self, insn):
-        print("notify_ana")
-        print("                insn @ {0}".format(hex(insn.ea)))
+        #print("notify_ana")
+        #print("                insn @ {0}".format(hex(insn.ea)))
 
         opcode = get_bytes(insn.ea, 1)[0]
         current, index = self._get_instruction_from_op(insn.ea, opcode)
-        print(dir(insn))
 
         if current == None:
             print("ERROR - notify_ana: Instruction not found: {0}".format(ord(opcode)))
@@ -367,7 +344,7 @@ class oki66207_processor_t(idaapi.processor_t):
             exit(0)
 
         insn.size = len(current[0])
-        print("        insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
+        #print("                insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
 
         return insn.size
 
@@ -376,31 +353,112 @@ class oki66207_processor_t(idaapi.processor_t):
         print("                ea: {0}".format(hex(ctx.insn.ea)))
 
         insn = ctx.insn
-        ctx.out_mnem()
-        for i in xrange(0, ctx.insn.Operands[0].value - 1):
-	    ctx.out_one_operand(i + 1)
+        itype = insn.itype
+
+        raw_mnem = oki66207.INSN_DEFS[itype][oki66207.IDEF_MNEMONIC].split()
+        operand_index = 1 # The first Op is used to keep the number of params
+        ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
+
+        for elt in raw_mnem[1:]: # We skip the first word
+            elt = elt.replace(",", "").lower()
+            print("               --> {0}".format(elt))
+            try:
+                # Is the parameter an immediate of any sort
+                as_int = int(elt)
+                insn.Op6.value = as_int # Op6 will never be used, so we use it to call ctx.out_value
+                ctx.out_value(insn.Op6)
+                print("------------------------- INT")
+            except Exception as e:
+                # Not a number
+                if elt == "a": # Register A
+                    ctx.out_register('A')
+                    print("------------------------- A")
+
+                elif "off" in elt: # Offset in page
+                    ctx.out_keyword("off ")
+                    continue
+
+                elif "imm" in elt or "rel" in elt: # An immediate that needs to be output from operands
+	            ctx.out_one_operand(operand_index)
+                    operand_index += 1
+
+                    #if "imm" in elt and not "#" in elt:
+                    #    OpOff(insn.ea, 0, 0)
+
+                    if "[x1]" in elt:
+                        ctx.out_symbol('[')
+                        ctx.out_register("x1")
+                        ctx.out_symbol(']')
+
+                    elif "[x2]" in elt:
+                        ctx.out_symbol('[')
+                        ctx.out_register("x2")
+                        ctx.out_symbol(']')
+
+                    elif "." in elt: # A bit in the immediate
+                        ctx.out_symbol('.')
+                        insn.Op6.value = int(elt[-1:])  # Op6 will never be used, so we use it to call ctx.out_value
+                        ctx.out_value(insn.Op6)
+
+                    print("------------------------- IMM")
+
+                elif "r" in elt or elt in ["dp", "x1", "x2", "usp", "lrb", "psw", "pswh", "pswl", "ssp"] or elt.startswith("["): # Another register
+                    if elt.startswith("["):
+                        ctx.out_symbol('[')
+                        ctx.out_register(elt.upper()[1:-1])
+                        ctx.out_symbol(']')
+                    else:
+                        ctx.out_register(elt.upper())
+                    print("------------------------- REG")
+
+                else:
+                    ctx.out_register(" unknown:{0}".format(elt))
+
+            ctx.out_char(",")
+            ctx.out_char(" ")
+
         ctx.set_gen_cmt()
 	ctx.flush_outbuf()
         return True
 
+    def notify_get_autocmt(self, insn):
+	return oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
+
     def notify_out_operand(self, ctx, op):
-        print("notify_out_operand")
-        print("                ea: {0}".format(hex(ctx.insn.ea)))
-        #optype = op.type
-	#if optype == o_imm:
+        #print("notify_out_operand")
+        # I only used this function for immediate. Probably not the best way to do
         ctx.out_value(op)
         return True
 
     def notify_emu(self, insn):
         print("notify_emu")
         print("                insn = {0}".format(insn))
+        # TODO: Conditionnal jumps
+
+        features = insn.get_canon_feature()
+	flow = (features & CF_STOP) == 0
+
+        if (features & CF_JUMP):
+	    dest = insn.Op2.value
+	    add_cref(insn.ea, dest, fl_JN)
+	    flow = False
+
+        elif (features & CF_CALL):
+	    dest = insn.Op2.value
+	    add_cref(insn.ea, dest, fl_CN)
+
+	if flow:
+	    add_cref(insn.ea, insn.ea + insn.size, fl_F)
+
         return True
 
 
     def init_instructions(self):
         self.instruc = []
         for insn in oki66207.INSN_DEFS:
-            self.instruc.append({'name': insn[oki66207.IDEF_MNEMONIC], 'feature': 0}) # Replace "0" in feature
+            mnemonic = insn[oki66207.IDEF_MNEMONIC]
+            features = insn[oki66207.IDEF_FEATURES]
+            self.instruc.append({'name': mnemonic, 'feature': features})
         self.instruc_start = 0
         self.instruc_end = len(oki66207.INSN_DEFS)
         self.icode_return = 0 # TODO: Check what would be good
@@ -479,14 +537,14 @@ class oki66207_processor_t(idaapi.processor_t):
         ]
 
         for elt in table:
-            MakeWord(elt[0])
-            MakeNameEx(elt[0], elt[1], idc.SN_NOWARN | idc.SN_NOCHECK)
+            create_data(elt[0], FF_WORD, 2, 0)
+            MakeName(elt[0], elt[1])
 
     def __init__(self):
         idaapi.processor_t.__init__(self)
         self.init_instructions()
         self.init_registers()
-        selt.init_memory()
+        self.init_memory()
 
 
 def PROCESSOR_ENTRY():

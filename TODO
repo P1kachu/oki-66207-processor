@@ -1,8 +1,7 @@
 TODO
 ====
 
-- Test current `oki_66207_processor.py`
-  - instruction features ?
-  - instruction opcodes ?
-- finish helpers/asm662-66207.op.modified
+- Do a proper pass for the instruction IDA Features (./helpers/asm662-66207.op.modified)
+- Handle conditionnal jumps
+- Differentiate addresses from immediates
 - Document

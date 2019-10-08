@@ -93,7 +93,7 @@ def pprint(output):
     #print(len(output))
 
 with open(sys.argv[1], "r") as f:
-    output.append(("ILLEGAL", [0x5], "UN", "Placeholder", "CF_NONE")) # Debug for now
+    output.append(("ILLEGAL", [0x5], "UN", "Placeholder", 0)) # Debug for now
     for line in f.readlines():
 
         line = line.rstrip().replace("\t", "")
@@ -138,7 +138,7 @@ with open(sys.argv[1], "r") as f:
         instruction = instruction.lower()
         instruction = instruction.replace("j ", "jmp ") if instruction.startswith("j ") else instruction
 
-        if 0 and n_in_opcode:
+        if n_in_opcode:
             #print()
             if ".n" in instruction:
                 nb = 8

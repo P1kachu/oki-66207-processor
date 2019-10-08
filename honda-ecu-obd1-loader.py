@@ -5,7 +5,7 @@ from struct import unpack as up
 from ctypes import *
 
 FIRMWARE_SIZE = 32768 # TODO: Verify
-HEADER_SIZE = 0x8000
+HEADER_SIZE = 0x100
 FORMAT_NAME = "Honda OBD1 ECU (B series)"
 
 def accept_file(li, n):
