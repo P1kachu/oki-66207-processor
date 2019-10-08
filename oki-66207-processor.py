@@ -11,11 +11,6 @@ Misc information from 66201 spec:
     - DD (data bit) is 1 if using WORDS or 0 if using BYTES
     - 66207.op format (x1     -x2x3 x4): See ./helpers/op_to_array.py
 
-I used nios2.py and ht68fb560.py as basis for this file. It was my first time
-creating a processor module so there might be obvious mistake that I didn't
-see. Feel free to submit corrections. The target for this module was to be able
-to reverse 90's/00's Honda ECUs, more specifically Integra Type R's. So most
-testing will be done with such firmwares.
 '''
 
 class oki66207_processor_t(idaapi.processor_t):
@@ -218,32 +213,6 @@ class oki66207_processor_t(idaapi.processor_t):
     GlobalPointer = BADADDR
 
     # ----------------------------------------------------------------------
-    # The following callbacks are optional.
-    # *** Please remove the callbacks that you don't plan to implement ***
-
-    # ----------------------------------------------------------------------
-    # Global pointer manipulations, init, save, load
-    #
-
-    def notify_init(self, idp_file):
-        return 1
-
-
-    def notify_oldfile(self, filename):
-        """An old file is loaded (already)"""
-        pass
-
-    def notify_savebase(self):
-        """The database is being saved. Processor module should save its local data"""
-        pass
-
-
-    # ----------------------------------------------------------------------
-    # Registers definition
-    #
-
-    # -----------------------------------------------------------------------------------------------------------------------------------------------------
-
 
     def _is_imm(self, val):
         return val > oki66207.SPECIAL_IMM_VALUE
@@ -367,12 +336,10 @@ class oki66207_processor_t(idaapi.processor_t):
                 as_int = int(elt)
                 insn.Op6.value = as_int # Op6 will never be used, so we use it to call ctx.out_value
                 ctx.out_value(insn.Op6)
-                print("------------------------- INT")
             except Exception as e:
                 # Not a number
                 if elt == "a": # Register A
                     ctx.out_register('A')
-                    print("------------------------- A")
 
                 elif "off" in elt: # Offset in page
                     ctx.out_keyword("off ")
@@ -400,7 +367,6 @@ class oki66207_processor_t(idaapi.processor_t):
                         insn.Op6.value = int(elt[-1:])  # Op6 will never be used, so we use it to call ctx.out_value
                         ctx.out_value(insn.Op6)
 
-                    print("------------------------- IMM")
 
                 elif "r" in elt or elt in ["dp", "x1", "x2", "usp", "lrb", "psw", "pswh", "pswl", "ssp"] or elt.startswith("["): # Another register
                     if elt.startswith("["):
@@ -409,7 +375,6 @@ class oki66207_processor_t(idaapi.processor_t):
                         ctx.out_symbol(']')
                     else:
                         ctx.out_register(elt.upper())
-                    print("------------------------- REG")
 
                 else:
                     ctx.out_register(" unknown:{0}".format(elt))

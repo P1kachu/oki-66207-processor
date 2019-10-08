@@ -5,6 +5,12 @@ Work in progress for Honda ECUs.
 
 STILL IN VERY EARLY STAGE
 
+I used nios2.py and ht68fb560.py as basis for this project. It's my first time
+creating a processor module so there might be obvious mistake that I didn't
+see. Feel free to submit corrections. The target for this module is to be able
+to reverse 90's/00's Honda ECUs, more specifically Integra Type R's. So most
+testing will be done with such firmwares.
+
 
 ### Files
 

@@ -4,4 +4,5 @@ TODO
 - Do a proper pass for the instruction IDA Features (./helpers/asm662-66207.op.modified)
 - Handle conditionnal jumps
 - Differentiate addresses from immediates
+- Add support for DD/CF bits
 - Document
