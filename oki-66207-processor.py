@@ -236,6 +236,8 @@ class oki66207_processor_t(idaapi.processor_t):
         return (None, -1)
 
     def _fill_operands(self, ea, current, insn):
+        itype = insn.itype
+        features = oki66207.INSN_DEFS[itype][oki66207.IDEF_FEATURES]
         nb_of_params = len(current[oki66207.IDEF_OPCODES]) - 1
 
         if nb_of_params == 0:
@@ -260,7 +262,12 @@ class oki66207_processor_t(idaapi.processor_t):
                     else:
                         insn.Operands[op_idx].value = val
 
-                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM8, oki66207.IMM8a, oki66207.IMM8b, oki66207.REL8):
+                elif current[oki66207.IDEF_OPCODES][p + 1] == oki66207.REL8:
+                    insn.Operands[op_idx].type = o_imm
+		    insn.Operands[op_idx].dtype = dt_word
+		    insn.Operands[op_idx].value = params[p]
+
+                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM8, oki66207.IMM8a, oki66207.IMM8b):
                     insn.Operands[op_idx].type = o_imm
 		    insn.Operands[op_idx].dtype = dt_byte
 		    insn.Operands[op_idx].value = params[p]
@@ -271,9 +278,9 @@ class oki66207_processor_t(idaapi.processor_t):
 		    insn.Operands[op_idx].value = (params[p + 1] << 8) + params[p]
                     p += 1
 
-                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16H):
+                elif current[oki66207.IDEF_OPCODES][p + 1] == oki66207.IMM16H:
 
-                    if current[oki66207.IDEF_OPCODES][p + 2] in (oki66207.IMM16L):
+                    if current[oki66207.IDEF_OPCODES][p + 2] == oki66207.IMM16L:
                         print("ERROR - _fill_operands: IMM16H found without IMM16L: {0}".format(hex(ea), current, [hex(x) for x in params]))
                         return 1
 
@@ -283,6 +290,7 @@ class oki66207_processor_t(idaapi.processor_t):
                     p += 1
 
                 else:
+                    print(current)
                     print("ERROR - _fill_operands: Unknown operand: {0}".format(current[oki66207.IDEF_OPCODES][p + 1]))
                     return 1
 
@@ -290,6 +298,13 @@ class oki66207_processor_t(idaapi.processor_t):
             p += 1
 
         insn.Operands[0].value = op_idx
+
+        if (features & CF_JUMP):
+            if oki66207.INSN_DEFS[itype][oki66207.IDEF_CF] == oki66207.CF_FLAG_CONDITIONAL_JUMP:
+                insn = self._handle_conditional_jumps(insn, current[oki66207.IDEF_OPCODES][0])
+            else:
+                insn = self._handle_jumps(insn, current[oki66207.IDEF_OPCODES][0])
+
 
         return 0
 
@@ -302,10 +317,10 @@ class oki66207_processor_t(idaapi.processor_t):
         current, index = self._get_instruction_from_op(insn.ea, opcode)
 
         if current == None:
-            print("ERROR - notify_ana: Instruction not found: {0}".format(ord(opcode)))
+            print("ERROR - notify_ana: Instruction not found: {0} ({1})".format(ord(opcode), hex(ord(opcode))))
             insn.itype = 0x5
-            insn.size = 1
-            return 1 # Instruction not found
+            insn.size = len(oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_OPCODES])
+            return insn.size # Instruction not found
 
         insn.itype = index
 
@@ -318,8 +333,8 @@ class oki66207_processor_t(idaapi.processor_t):
         return insn.size
 
     def notify_out_insn(self, ctx):
-        print("notify_out_insn")
-        print("                ea: {0}".format(hex(ctx.insn.ea)))
+        #print("notify_out_insn")
+        #print("                ea: {0}".format(hex(ctx.insn.ea)))
 
         insn = ctx.insn
         itype = insn.itype
@@ -330,7 +345,7 @@ class oki66207_processor_t(idaapi.processor_t):
 
         for elt in raw_mnem[1:]: # We skip the first word
             elt = elt.replace(",", "").lower()
-            print("               --> {0}".format(elt))
+            #print("               --> {0}".format(elt))
             try:
                 # Is the parameter an immediate of any sort
                 as_int = int(elt)
@@ -342,7 +357,14 @@ class oki66207_processor_t(idaapi.processor_t):
                     ctx.out_register('A')
 
                 elif "off" in elt: # Offset in page
-                    ctx.out_keyword("off ")
+                    #ctx.out_keyword("off ")
+                    '''
+                    insn.Op6.value = insn.ea + insn.size # Op6 will never be used, so we use it to call ctx.out_value
+                    ctx.out_value(insn.Op6)
+                    ctx.out_char(" ")
+                    ctx.out_char("+")
+                    ctx.out_char(" ")
+                    '''
                     continue
 
                 elif "imm" in elt or "rel" in elt: # An immediate that needs to be output from operands
@@ -379,8 +401,9 @@ class oki66207_processor_t(idaapi.processor_t):
                 else:
                     ctx.out_register(" unknown:{0}".format(elt))
 
-            ctx.out_char(",")
-            ctx.out_char(" ")
+            if elt != raw_mnem[-1]:
+                ctx.out_char(",")
+                ctx.out_char(" ")
 
         ctx.set_gen_cmt()
 	ctx.flush_outbuf()
@@ -395,25 +418,82 @@ class oki66207_processor_t(idaapi.processor_t):
         ctx.out_value(op)
         return True
 
+
+    def _handle_jumps(self, insn, itype):
+        if itype == 0xb0: # jmp [imm16[x1]]
+            pass # TODO
+        elif itype == 0xb0: # jmp [imm16[x2]]
+            pass # TODO
+        elif itype == 0xb3: # jmp [signedimm8[usp]]
+            pass# TODO
+        elif itype == 0xb4: # jmp [off imm8]
+             insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xb5: # jmp [imm8]
+            pass
+        elif itype == 0xcb: # sj rel8
+            pass # TODO
+
+        insn.Operands[1].type = o_near
+
+        return insn
+
+
+    def _handle_conditional_jumps(self, insn, itype):
+
+        if itype == 0x30: # jrnz dp, rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xc8: # jgt rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xc9: # jeq rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xca: # jlt rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xcd: # jge rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xce: # jne rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype == 0xcf: # jle rel8
+            insn.Operands[1].value += insn.ea + insn.size
+        elif itype > 0xd8 and itype < 0xe0: # jbr off imm8.x, rel8
+            #insn.Operands[1].value += (insn.ea % 256) * 256 # TODO: Verify
+            insn.Operands[2].value += insn.ea + insn.size
+        elif itype > 0xe8 and itype < 0xf0: # jbs off imm8.x, rel8
+            #insn.Operands[1].value += (insn.ea % 256) * 256 # TODO: Verify
+            insn.Operands[2].value += insn.ea + insn.size
+
+        for x in range(insn.Operands[0].value):
+            if insn.Operands[x + 1].value > 0xff:
+                insn.Operands[x + 1].dtype = dt_word
+            insn.Operands[x + 1].type = o_near
+
+        return insn
+
     def notify_emu(self, insn):
-        print("notify_emu")
-        print("                insn = {0}".format(insn))
-        # TODO: Conditionnal jumps
+        #print("notify_emu")
+        #print("                insn = {0}".format(insn))
 
         features = insn.get_canon_feature()
 	flow = (features & CF_STOP) == 0
 
         if (features & CF_JUMP):
-	    dest = insn.Op2.value
+            print("notify_emu: JUMP")
+            if oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_CF] != oki66207.CF_FLAG_CONDITIONAL_JUMP:
+	        flow = False
+
+	    dest = insn.Operands[insn.Op1.value - 1].value
 	    add_cref(insn.ea, dest, fl_JN)
-	    flow = False
+            OpOff(insn.ea, 0, 0)
+            #print("Creating jump cref at {0} towards {1}".format(hex(insn.ea), hex(dest)))
 
         elif (features & CF_CALL):
 	    dest = insn.Op2.value
 	    add_cref(insn.ea, dest, fl_CN)
+            OpOff(insn.ea, 0, 0)
+            #print("Creating call cref at {0} towards {1}".format(hex(insn.ea), hex(dest)))
 
 	if flow:
 	    add_cref(insn.ea, insn.ea + insn.size, fl_F)
+            print("Creating jump cref at {0} towards {1}".format(hex(insn.ea), hex(insn.ea + insn.size)))
 
         return True
 
@@ -477,39 +557,10 @@ class oki66207_processor_t(idaapi.processor_t):
         # number of DS register
         self.reg_data_sreg = self.ireg_DS
 
-    def init_memory(self):
-        table = [
-            (0x00, "int_start"),
-	    (0x02, "int_break"),
-	    (0x04, "int_WDT"),
-	    (0x06, "int_NMI"),
-	    (0x08, "int_INT0"),
-	    (0x0a, "int_serial_rx"),
-	    (0x0c, "int_serial_tx"),
-	    (0x0e, "int_serial_rx_BRG"),
-	    (0x10, "int_timer_0_overflow"),
-	    (0x12, "int_timer_0"),
-	    (0x14, "int_timer_1_overflow"),
-	    (0x16, "int_timer_1"),
-	    (0x18, "int_timer_2_overflow"),
-	    (0x1a, "int_timer_2"),
-	    (0x1c, "int_timer_3_overflow"),
-	    (0x0e, "int_timer_3"),
-	    (0x20, "int_a2d_finished"),
-	    (0x22, "int_PWM_timer"),
-	    (0x24, "int_serial_tx_BRG"),
-	    (0x26, "int_INT1"),
-        ]
-
-        for elt in table:
-            create_data(elt[0], FF_WORD, 2, 0)
-            MakeName(elt[0], elt[1])
-
     def __init__(self):
         idaapi.processor_t.__init__(self)
         self.init_instructions()
         self.init_registers()
-        self.init_memory()
 
 
 def PROCESSOR_ENTRY():
