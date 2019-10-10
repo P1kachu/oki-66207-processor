@@ -25,7 +25,7 @@ def _init_memory():
         (0x18, "int_timer_2_overflow"),
         (0x1a, "int_timer_2"),
         (0x1c, "int_timer_3_overflow"),
-        (0x0e, "int_timer_3"),
+        (0x1e, "int_timer_3"),
         (0x20, "int_a2d_finished"),
         (0x22, "int_PWM_timer"),
         (0x24, "int_serial_tx_BRG"),
@@ -39,9 +39,19 @@ def _init_memory():
         MakeName(elt[0], elt[1])
         OpOff(elt[0], 0, 0)
 
+    vcal = 0
+    while vcal < 8:
+        addr = 0x28 + vcal * 2
+        print("Creating VCAL {0} at {1}".format(vcal, hex(addr)))
+        MakeUnkn(addr, 2)
+        create_data(addr, FF_WORD, 2, 0)
+        MakeName(addr, "VCAL{0}".format(vcal))
+        OpOff(addr, 0, 0)
+        vcal += 1
+
     int_start = get_bytes(0x0, 2)
-    int_start_addr = (ord(int_start[1]) << 8) + ord(int_start[0])
-    cvar.inf.beginEA = cvar.inf.startIP = int_start_addr
+    int_start_addr = (ord(int_start[0]) << 8) + ord(int_start[1])
+    cvar.inf.beginEA = cvar.inf.startIP = int_start_addr + 0x10 # Why do I need to add 0x10 ??
 
 
 
