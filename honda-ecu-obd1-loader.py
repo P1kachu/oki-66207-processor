@@ -37,6 +37,12 @@ def _init_memory():
         MakeUnkn(elt[0], 2)
         create_data(elt[0], FF_WORD, 2, 0)
         MakeName(elt[0], elt[1])
+        OpOff(elt[0], 0, 0)
+
+    int_start = get_bytes(0x0, 2)
+    int_start_addr = (ord(int_start[1]) << 8) + ord(int_start[0])
+    cvar.inf.beginEA = cvar.inf.startIP = int_start_addr
+
 
 
 def accept_file(li, n):
@@ -65,8 +71,7 @@ def load_file(li, neflags, fmt):
 
     set_processor_type("oki66207", SETPROC_ALL|SETPROC_FATAL)
     set_compiler_id(COMP_GNU)
-
-    cvar.inf.beginEA = cvar.inf.startIP = HEADER_SIZE + 0x10
+    cvar.inf.mf = True # Big endian
 
     #set_selector(1, 0);
 

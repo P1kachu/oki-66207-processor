@@ -3,7 +3,7 @@ IDA Python OKI 66207 Loader and Processor
 
 Work in progress for Honda ECUs.
 
-STILL IN VERY EARLY STAGE
+STILL IN VERY EARLY STAGE. It's a hack, basically.
 
 I used nios2.py and ht68fb560.py as basis for this project. It's my first time
 creating a processor module so there might be obvious mistake that I didn't

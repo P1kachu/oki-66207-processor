@@ -68,7 +68,7 @@ class oki66207_processor_t(idaapi.processor_t):
         'name': plnames[0],
 
         # array of automatically generated header lines they appear at the start of disassembled text (optional)
-        'header': [plnames[0], "Experimental for Honda OBD1 ECUs"],
+        'header': [plnames[0], "Experimental for Honda OBD1 ECUs", "Draft by Stanislas Lejay"],
 
         # org directive
         'origin': ".org",
@@ -217,6 +217,9 @@ class oki66207_processor_t(idaapi.processor_t):
     def _is_imm(self, val):
         return val > oki66207.SPECIAL_IMM_VALUE
 
+    def _get_current_page(self, ea):
+        return (ea / 0x100) * 0x100
+
     def _get_instruction_from_op(self, ea, op):
         for index, definition in enumerate(oki66207.INSN_DEFS):
             if definition[oki66207.IDEF_OPCODES][0] == ord(op):
@@ -234,6 +237,31 @@ class oki66207_processor_t(idaapi.processor_t):
                     return (definition, index)
 
         return (None, -1)
+
+    def _handle_offsets(self, current, insn):
+        raw_mnem = current[oki66207.IDEF_MNEMONIC].split()
+        op_idx = 1
+        next_is_offset = False
+        for elt in raw_mnem[1:]:
+
+            if elt == "off":
+                next_is_offset = True
+                continue
+
+            if next_is_offset:
+                insn.Operands[op_idx].value += self._get_current_page(insn.ea)
+
+                next_is_offset = False
+
+            try:
+                int(elt)
+                op_idx += 1
+            except Exception as e:
+                if "imm" in elt:
+                    op_idx += 1
+
+
+        return insn
 
     def _fill_operands(self, ea, current, insn):
         itype = insn.itype
@@ -272,16 +300,17 @@ class oki66207_processor_t(idaapi.processor_t):
 		    insn.Operands[op_idx].dtype = dt_byte
 		    insn.Operands[op_idx].value = params[p]
 
-                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16, oki66207.IMM16b, oki66207.IMM16L):
+                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16, oki66207.IMM16b, oki66207.IMM16L, oki66207.IMM16Lb, oki66207.IMM16La):
                     insn.Operands[op_idx].type = o_near
 		    insn.Operands[op_idx].dtype = dt_word
 		    insn.Operands[op_idx].value = (params[p + 1] << 8) + params[p]
                     p += 1
 
-                elif current[oki66207.IDEF_OPCODES][p + 1] == oki66207.IMM16H:
+                elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16H, oki66207.IMM16Ha, oki66207.IMM16Hb):
 
-                    if current[oki66207.IDEF_OPCODES][p + 2] == oki66207.IMM16L:
+                    if current[oki66207.IDEF_OPCODES][p + 2] not in (oki66207.IMM16L, oki66207.IMM16La, oki66207.IMM16Lb):
                         print("ERROR - _fill_operands: IMM16H found without IMM16L: {0}".format(hex(ea), current, [hex(x) for x in params]))
+                        print("Should not happen")
                         return 1
 
                     insn.Operands[op_idx].type = o_near
@@ -304,6 +333,14 @@ class oki66207_processor_t(idaapi.processor_t):
                 insn = self._handle_conditional_jumps(insn, current[oki66207.IDEF_OPCODES][0])
             else:
                 insn = self._handle_jumps(insn, current[oki66207.IDEF_OPCODES][0])
+
+        if "off" in current[oki66207.IDEF_MNEMONIC]:
+            insn = self._handle_offsets(current, insn)
+
+        for x in range(insn.Operands[0].value):
+            if insn.Operands[x + 1].value > 0xff:
+                insn.Operands[x + 1].dtype = dt_word
+            insn.Operands[x + 1].type = o_near
 
 
         return 0
@@ -455,16 +492,9 @@ class oki66207_processor_t(idaapi.processor_t):
         elif itype == 0xcf: # jle rel8
             insn.Operands[1].value += insn.ea + insn.size
         elif itype > 0xd8 and itype < 0xe0: # jbr off imm8.x, rel8
-            #insn.Operands[1].value += (insn.ea % 256) * 256 # TODO: Verify
-            insn.Operands[2].value += insn.ea + insn.size
+            insn.Operands[2].value += insn.ea + insn.size # Verify
         elif itype > 0xe8 and itype < 0xf0: # jbs off imm8.x, rel8
-            #insn.Operands[1].value += (insn.ea % 256) * 256 # TODO: Verify
-            insn.Operands[2].value += insn.ea + insn.size
-
-        for x in range(insn.Operands[0].value):
-            if insn.Operands[x + 1].value > 0xff:
-                insn.Operands[x + 1].dtype = dt_word
-            insn.Operands[x + 1].type = o_near
+            insn.Operands[2].value += insn.ea + insn.size # Verify
 
         return insn
 
