@@ -369,17 +369,11 @@ class oki66207_processor_t(idaapi.processor_t):
 
         return insn.size
 
-    def notify_out_insn(self, ctx):
-        #print("notify_out_insn")
-        #print("                ea: {0}".format(hex(ctx.insn.ea)))
-
+    def _handle_out_insn_any(self, ctx, raw_mnem):
         insn = ctx.insn
         itype = insn.itype
 
-        raw_mnem = oki66207.INSN_DEFS[itype][oki66207.IDEF_MNEMONIC].split()
         operand_index = 1 # The first Op is used to keep the number of params
-        ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
-
         for elt in raw_mnem[1:]: # We skip the first word
             elt = elt.replace(",", "").lower()
             #print("               --> {0}".format(elt))
@@ -441,6 +435,25 @@ class oki66207_processor_t(idaapi.processor_t):
             if elt != raw_mnem[-1]:
                 ctx.out_char(",")
                 ctx.out_char(" ")
+
+    def _handle_out_insn_vcal(self, ctx, raw_mnem):
+        insn = ctx.insn
+        itype = insn.itype
+
+        ctx.out_keyword("vcal_{0}".format(raw_mnem[1]))
+
+
+    def notify_out_insn(self, ctx):
+        #print("notify_out_insn")
+        #print("                ea: {0}".format(hex(ctx.insn.ea)))
+
+        raw_mnem = oki66207.INSN_DEFS[ctx.insn.itype][oki66207.IDEF_MNEMONIC].split()
+        ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
+
+        if "vcal" in raw_mnem[0]:
+            self._handle_out_insn_vcal(ctx, raw_mnem)
+        else:
+            self._handle_out_insn_any(ctx, raw_mnem)
 
         ctx.set_gen_cmt()
 	ctx.flush_outbuf()

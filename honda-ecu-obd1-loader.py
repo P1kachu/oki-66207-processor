@@ -45,7 +45,7 @@ def _init_memory():
         print("Creating VCAL {0} at {1}".format(vcal, hex(addr)))
         MakeUnkn(addr, 2)
         create_data(addr, FF_WORD, 2, 0)
-        MakeName(addr, "VCAL{0}".format(vcal))
+        MakeName(addr, "vcal_{0}".format(vcal))
         OpOff(addr, 0, 0)
         vcal += 1
 
