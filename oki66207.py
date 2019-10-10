@@ -2389,8 +2389,4 @@ class oki66207:
         ([0x00fd, ], DD_FLAG_UNUSED, CF_FLAG_NEXT, "inc lrb", CF_CHG1),
         ([0x00fe, ], DD_FLAG_UNUSED, CF_FLAG_NEXT, "dec lrb", CF_CHG1),
         ([0x00ff, ], DD_FLAG_UNUSED, CF_FLAG_INDIRECT_JUMP, "brk", CF_STOP),
-        ([0x00b4, IMM8, IMM8], DD_FLAG_ONE, CF_FLAG_NEXT, "unknown b4/*/*", CF_CHG1|CF_CHG2),
-        ([0x00cc, IMM8, IMM8], DD_FLAG_ONE, CF_FLAG_NEXT, "unknown cc/*/*", CF_CHG1|CF_CHG2),
-        ([0x0007, IMM8], DD_FLAG_ONE, CF_FLAG_NEXT, "unknown 07/*", CF_CHG1|CF_CHG2),
-        ([0x00c4, IMM8, IMM8, IMM8], DD_FLAG_ONE, CF_FLAG_NEXT, "unknown c4/*/*/*", CF_CHG1|CF_CHG2),
             ]

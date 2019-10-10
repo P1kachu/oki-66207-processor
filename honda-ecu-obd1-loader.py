@@ -10,8 +10,8 @@ FORMAT_NAME = "Honda OBD1 ECU (B series)"
 
 def _init_memory():
     table = [
-        (0x00, "int_start"),
-        (0x02, "int_break"),
+        (0x00, "int_RESET"),
+        (0x02, "int_brk"),
         (0x04, "int_WDT"),
         (0x06, "int_NMI"),
         (0x08, "int_INT0"),
@@ -48,6 +48,25 @@ def _init_memory():
         MakeName(addr, "vcal_{0}".format(vcal))
         OpOff(addr, 0, 0)
         vcal += 1
+
+    '''
+    pr = 0
+    while pr < 8:
+        addr = 0x80 + pr * 8
+        MakeUnkn(addr, 8)
+        create_data(addr, FF_WORD, 2, 0)
+        MakeName(addr, "pr{0}_x1".format(pr))
+        create_data(addr + 2, FF_WORD, 2, 0)
+        MakeName(addr + 2, "pr{0}_x2".format(pr))
+        create_data(addr + 4, FF_WORD, 2, 0)
+        MakeName(addr + 4, "pr{0}_dp".format(pr))
+        create_data(addr + 6, FF_WORD, 2, 0)
+        MakeName(addr + 6, "pr{0}_usp".format(pr))
+        pr += 1
+    '''
+
+
+
 
     int_start = get_bytes(0x0, 2)
     int_start_addr = (ord(int_start[0]) << 8) + ord(int_start[1])
@@ -88,9 +107,13 @@ def load_file(li, neflags, fmt):
     flags = ADDSEG_NOTRUNC|ADDSEG_OR_DIE
 
     print("Creating segment: ", AddSegEx(0x00, 0x28, 0, 0, saRelPara, scPub, flags)) # Vector Table
+    RenameSeg(0x00, "vect_tbl")
     print("Creating segment: ", AddSegEx(0x28, 0x38, 0, 0, saRelPara, scPub, flags)) # VCAL Table
+    RenameSeg(0x28, "vcals")
     print("Creating segment: ", AddSegEx(0x38, 0x4000, 0, 0, saRelPara, scPub, flags)) # ROM
+    RenameSeg(0x38, "rom")
     print("Creating segment: ", AddSegEx(0x4000, 0xffff, 0, 0, saRelPara, scPub, flags)) # External Memory
+    RenameSeg(0x4000, "ext_mem")
     li.file2base(0, 0, filesize, 0)
 
     _init_memory()

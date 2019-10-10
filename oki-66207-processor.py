@@ -222,6 +222,11 @@ class oki66207_processor_t(idaapi.processor_t):
 
     def _get_instruction_from_op(self, ea, op):
         for index, definition in enumerate(oki66207.INSN_DEFS):
+            if definition[oki66207.IDEF_DD] != oki66207.DD_FLAG_UNUSED:
+                if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ONE and self.ireg_dd != 1:
+                    continue
+                if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ZERO and self.ireg_dd != 0:
+                    continue
             if definition[oki66207.IDEF_OPCODES][0] == ord(op):
                 match = True
                 nb_of_params = len(definition[oki66207.IDEF_OPCODES]) - 1
@@ -234,6 +239,13 @@ class oki66207_processor_t(idaapi.processor_t):
                             break
 
                 if match:
+                    MakeComm(ea, "DD:{0}".format(self.ireg_dd))
+                    if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
+                        self.ireg_dd = 0
+                        MakeComm(ea, "DD reset")
+                    elif definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
+                        self.ireg_dd = 1
+                        MakeComm(ea, "DD set")
                     return (definition, index)
 
         return (None, -1)
@@ -420,27 +432,33 @@ class oki66207_processor_t(idaapi.processor_t):
                         insn.Op6.value = int(elt[-1:])  # Op6 will never be used, so we use it to call ctx.out_value
                         ctx.out_value(insn.Op6)
 
-
-                elif "r" in elt or elt in ["dp", "x1", "x2", "usp", "lrb", "psw", "pswh", "pswl", "ssp"] or elt.startswith("["): # Another register
+                else:
                     if elt.startswith("["):
                         ctx.out_symbol('[')
                         ctx.out_register(elt.upper()[1:-1])
                         ctx.out_symbol(']')
                     else:
-                        ctx.out_register(elt.upper())
+                        bit = -1
+                        if "." in elt:
+                            bit = int(elt[-1:])
+                            elt = elt[:-2]
 
-                else:
-                    ctx.out_register(" unknown:{0}".format(elt))
+                        if "r" in elt or elt in ["dp", "x1", "x2", "usp", "lrb", "psw", "pswh", "pswl", "ssp", "c"]: # Another register
+                            ctx.out_register(elt.upper())
+                            if bit > -1:
+                                ctx.out_symbol('.')
+                                insn.Op6.value = int(bit)  # Op6 will never be used, so we use it to call ctx.out_value
+                                ctx.out_value(insn.Op6)
+
+                        else:
+                            ctx.out_register("unknown_reg_{0}".format(elt.upper()))
+
+
 
             if elt != raw_mnem[-1]:
                 ctx.out_char(",")
                 ctx.out_char(" ")
 
-    def _handle_out_insn_vcal(self, ctx, raw_mnem):
-        insn = ctx.insn
-        itype = insn.itype
-
-        ctx.out_keyword("vcal_{0}".format(raw_mnem[1]))
 
 
     def notify_out_insn(self, ctx):
@@ -451,7 +469,9 @@ class oki66207_processor_t(idaapi.processor_t):
         ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
 
         if "vcal" in raw_mnem[0]:
-            self._handle_out_insn_vcal(ctx, raw_mnem)
+            ctx.out_keyword("vcal_{0}".format(raw_mnem[1]))
+        elif "brk" in raw_mnem[0]:
+            ctx.out_keyword("int_brk")
         else:
             self._handle_out_insn_any(ctx, raw_mnem)
 
@@ -477,10 +497,11 @@ class oki66207_processor_t(idaapi.processor_t):
         elif itype == 0xb3: # jmp [signedimm8[usp]]
             pass# TODO
         elif itype == 0xb4: # jmp [off imm8]
-             insn.Operands[1].value += insn.ea + insn.size
+            insn.Operands[1].value += insn.ea + insn.size
         elif itype == 0xb5: # jmp [imm8]
             pass
         elif itype == 0xcb: # sj rel8
+            insn.Operands[1].value += insn.ea + insn.size
             pass # TODO
 
         insn.Operands[1].type = o_near
@@ -516,10 +537,15 @@ class oki66207_processor_t(idaapi.processor_t):
         #print("                insn = {0}".format(insn))
 
         features = insn.get_canon_feature()
+        mnemonic = oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
 	flow = (features & CF_STOP) == 0
 
+        # TODO: EMU PSW accesses
+        if "psw," in mnemonic or "pswh," in mnemonic:
+            MakeComm(insn.ea, "Might affect DD")
+        # TODO: EMU VCALLS
+
         if (features & CF_JUMP):
-            print("notify_emu: JUMP")
             if oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_CF] != oki66207.CF_FLAG_CONDITIONAL_JUMP:
 	        flow = False
 
@@ -559,6 +585,8 @@ class oki66207_processor_t(idaapi.processor_t):
         # register names (non memory mapped)
         self.reg_names = [
             # "acc",
+            "A",
+            "C",
             #"psw",
             "pc",
             # "lrb",
@@ -579,6 +607,9 @@ class oki66207_processor_t(idaapi.processor_t):
             "r6",
             "r7",
             "er3",
+            # Special registers
+            "dd",
+            "cf",
             # Fake segment registers
             "CS",
             "DS"
@@ -599,6 +630,8 @@ class oki66207_processor_t(idaapi.processor_t):
         self.reg_code_sreg = self.ireg_CS
         # number of DS register
         self.reg_data_sreg = self.ireg_DS
+
+        self.ireg_dd = 0
 
     def __init__(self):
         idaapi.processor_t.__init__(self)
