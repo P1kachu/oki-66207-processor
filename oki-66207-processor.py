@@ -240,13 +240,16 @@ class oki66207_processor_t(idaapi.processor_t):
                             break
 
                 if match:
-                    MakeComm(ea, "DD:{0}".format(self.ireg_dd))
                     if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
                         self.ireg_dd = 0
-                        MakeComm(ea, "DD reset")
+                        #MakeRptCmt(ea, "DD reset")
                     elif definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
                         self.ireg_dd = 1
-                        MakeComm(ea, "DD set")
+                        #MakeRptCmt(ea, "DD set")
+                    else:
+                        pass
+                        #MakeRptCmt(ea, "DD:{0}".format(self.ireg_dd))
+                    split_sreg_range(ea, "dd", self.ireg_dd, SR_auto)
                     return (definition, index)
 
         return (None, -1)
@@ -542,7 +545,8 @@ class oki66207_processor_t(idaapi.processor_t):
 
         # TODO: EMU PSW accesses
         if "psw," in mnemonic or "pswh," in mnemonic:
-            MakeComm(insn.ea, "Might affect DD")
+            #MakeRptCmt(insn.ea, "Might affect DD")
+            pass
         # TODO: EMU VCALLS
 
         if (features & CF_JUMP):

@@ -66,11 +66,6 @@ def _init_memory():
     '''
 
 
-    int_start = get_bytes(0x0, 2)
-    int_start_addr = (ord(int_start[1]) << 8) + ord(int_start[0])
-    cvar.inf.beginEA = cvar.inf.startIP = int_start_addr + 0x10 # Why do I need to add 0x10 ??
-
-
 
 def accept_file(li, n):
 
@@ -105,8 +100,9 @@ def load_file(li, neflags, fmt):
 
     #set_selector(1, 0);
 
-    flags = ADDSEG_NOTRUNC|ADDSEG_OR_DIE
+    li.file2base(0, 0, filesize, 0)
 
+    flags = ADDSEG_NOTRUNC|ADDSEG_OR_DIE
     print("Creating segment: ", AddSegEx(0x00, 0x28, 0, 0, saRelPara, scPub, flags)) # Vector Table
     RenameSeg(0x00, "vect_tbl")
     print("Creating segment: ", AddSegEx(0x28, 0x38, 0, 0, saRelPara, scPub, flags)) # VCAL Table
@@ -115,7 +111,10 @@ def load_file(li, neflags, fmt):
     RenameSeg(0x38, "rom")
     print("Creating segment: ", AddSegEx(0x4000, 0xffff, 0, 0, saRelPara, scPub, flags)) # External Memory
     RenameSeg(0x4000, "ext_mem")
-    li.file2base(0, 0, filesize, 0)
+
+    int_start = get_bytes(0x0, 2)
+    int_start_addr = (ord(int_start[1]) << 8) + ord(int_start[0])
+    cvar.inf.beginEA = cvar.inf.startIP = int_start_addr + 0x10 # Why do I need to add 0x10 ??
 
     _init_memory()
 
