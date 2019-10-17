@@ -221,6 +221,7 @@ class oki66207_processor_t(idaapi.processor_t):
         return (ea / 0x100) * 0x100
 
     def _get_instruction_from_op(self, ea, op):
+        print("_get_instruction_from_op {0}".format(hex(ea)))
         for index, definition in enumerate(oki66207.INSN_DEFS):
             if definition[oki66207.IDEF_DD] != oki66207.DD_FLAG_UNUSED:
                 if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ONE and self.ireg_dd != 1:
@@ -251,6 +252,7 @@ class oki66207_processor_t(idaapi.processor_t):
         return (None, -1)
 
     def _handle_offsets(self, current, insn):
+        print("_handle_offsets {0}".format(hex(insn.ea)))
         raw_mnem = current[oki66207.IDEF_MNEMONIC].split()
         op_idx = 1
         next_is_offset = False
@@ -276,6 +278,7 @@ class oki66207_processor_t(idaapi.processor_t):
         return insn
 
     def _fill_operands(self, ea, current, insn):
+        print("_fill_operands {0}".format(hex(ea)))
         itype = insn.itype
         features = oki66207.INSN_DEFS[itype][oki66207.IDEF_FEATURES]
         nb_of_params = len(current[oki66207.IDEF_OPCODES]) - 1
@@ -337,7 +340,6 @@ class oki66207_processor_t(idaapi.processor_t):
 
                 op_idx += 1
             p += 1
-
         insn.Operands[0].value = op_idx
 
         if (features & CF_JUMP):
@@ -352,15 +354,13 @@ class oki66207_processor_t(idaapi.processor_t):
         for x in range(insn.Operands[0].value):
             if insn.Operands[x + 1].value > 0xff:
                 insn.Operands[x + 1].dtype = dt_word
-            insn.Operands[x + 1].type = o_near
-
+                insn.Operands[x + 1].type = o_near
 
         return 0
 
 
     def notify_ana(self, insn):
-        #print("notify_ana")
-        #print("                insn @ {0}".format(hex(insn.ea)))
+        print("notify_ana {0}".format(hex(insn.ea)))
 
         opcode = get_bytes(insn.ea, 1)[0]
         current, index = self._get_instruction_from_op(insn.ea, opcode)
@@ -374,14 +374,16 @@ class oki66207_processor_t(idaapi.processor_t):
         insn.itype = index
 
         if self._fill_operands(insn.ea, current, insn):
+            print("EXIT")
             exit(0)
 
         insn.size = len(current[0])
-        #print("                insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
+        print("                insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
 
         return insn.size
 
     def _handle_out_insn_any(self, ctx, raw_mnem):
+        print("_handle_out_insn_any {0}".format(hex(ctx.insn.ea)))
         insn = ctx.insn
         itype = insn.itype
 
@@ -462,8 +464,7 @@ class oki66207_processor_t(idaapi.processor_t):
 
 
     def notify_out_insn(self, ctx):
-        #print("notify_out_insn")
-        #print("                ea: {0}".format(hex(ctx.insn.ea)))
+        print("notify_out_insn {0}".format(hex(ctx.insn.ea)))
 
         raw_mnem = oki66207.INSN_DEFS[ctx.insn.itype][oki66207.IDEF_MNEMONIC].split()
         ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
@@ -483,7 +484,7 @@ class oki66207_processor_t(idaapi.processor_t):
 	return oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
 
     def notify_out_operand(self, ctx, op):
-        #print("notify_out_operand")
+        print("notify_out_operand {0}".format(hex(ctx.insn.ea)))
         # I only used this function for immediate. Probably not the best way to do
         ctx.out_value(op)
         return True
@@ -533,8 +534,7 @@ class oki66207_processor_t(idaapi.processor_t):
         return insn
 
     def notify_emu(self, insn):
-        #print("notify_emu")
-        #print("                insn = {0}".format(insn))
+        print("notify_emu {0}".format(hex(insn.ea)))
 
         features = insn.get_canon_feature()
         mnemonic = oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
@@ -562,7 +562,7 @@ class oki66207_processor_t(idaapi.processor_t):
 
 	if flow:
 	    add_cref(insn.ea, insn.ea + insn.size, fl_F)
-            print("Creating jump cref at {0} towards {1}".format(hex(insn.ea), hex(insn.ea + insn.size)))
+            #print("Creating flow cref at {0} towards {1}".format(hex(insn.ea), hex(insn.ea + insn.size)))
 
         return True
 

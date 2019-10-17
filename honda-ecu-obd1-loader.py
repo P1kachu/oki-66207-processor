@@ -4,9 +4,9 @@ from idaapi import *
 from struct import unpack as up
 from ctypes import *
 
-FIRMWARE_SIZE = 32768 # TODO: Verify
-HEADER_SIZE = 0x100
 FORMAT_NAME = "Honda OBD1 ECU (B series)"
+SPECIAL_STRING = [0x00, 0xB5, 0x04, 0x15, 0x57, 0x41, 0x00, 0xC4, 0x30, 0x0F, 0xC9, 0x04, 0x42, 0xD0, 0x84, 0x00, 0x62]
+SPECIAL_STRING_BEGIN = 0x3b
 
 def _init_memory():
     table = [
@@ -66,27 +66,28 @@ def _init_memory():
     '''
 
 
-
-
     int_start = get_bytes(0x0, 2)
-    int_start_addr = (ord(int_start[0]) << 8) + ord(int_start[1])
+    int_start_addr = (ord(int_start[1]) << 8) + ord(int_start[0])
     cvar.inf.beginEA = cvar.inf.startIP = int_start_addr + 0x10 # Why do I need to add 0x10 ??
 
 
 
 def accept_file(li, n):
 
-    #if n:
-    #    return False
+    # TODO: Remove
+    return FORMAT_NAME
 
-    ##li.seek(0, os.SEEK_END)
-    ##file_len = li.tell()
-    #if li.size() < FIRMWARE_SIZE:
-    #    return False
+    try:
+        li.seek(SPECIAL_STRING_BEGIN)
+        special_string = li.read(len(SPECIAL_STRING))
+        special_string_bytes = [ord(x) for x in special_string]
+        for i in xrange(0, len(SPECIAL_STRING)):
+            if special_string_bytes[i] != SPECIAL_STRING[i]:
+                return 0
+    except:
+        # Probably file too small
+        return 0
 
-    #header = li.read(HEADER_SIZE)
-
-    # Until I actually reverse the fw~
     return FORMAT_NAME
 
 def load_file(li, neflags, fmt):
@@ -100,7 +101,7 @@ def load_file(li, neflags, fmt):
 
     set_processor_type("oki66207", SETPROC_ALL|SETPROC_FATAL)
     set_compiler_id(COMP_GNU)
-    cvar.inf.mf = True # Big endian
+    #cvar.inf.mf = True # Big endian
 
     #set_selector(1, 0);
 

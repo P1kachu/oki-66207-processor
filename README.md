@@ -19,6 +19,9 @@ testing will be done with such firmwares.
 - (`oki66207.py` is a temporary split of the above file)
 - `./helpers/op_to_array.py asm662-66207.op.modified` to extract instructions from asm662 files
 
+### Misc
+- Little endian architecture (https://mycomputerninja.com/~jon/www.pgmfi.org/twiki/bin/view/Library/LittleEndian.html)
+
 ### Links
 
 - http://wuffs.org/blog/mouse-adventures-part-7
