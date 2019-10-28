@@ -13,6 +13,8 @@ Misc information from 66201 spec:
 
 '''
 
+FUNCTIONS_ENTRY_PRINT = False
+
 class oki66207_processor_t(idaapi.processor_t):
     # IDA id (> 0x8000 for third party)
     id = 0x8123
@@ -221,7 +223,8 @@ class oki66207_processor_t(idaapi.processor_t):
         return (ea / 0x100) * 0x100
 
     def _get_instruction_from_op(self, ea, op):
-        print("_get_instruction_from_op {0}".format(hex(ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: _get_instruction_from_op {0}".format(hex(ea)))
         for index, definition in enumerate(oki66207.INSN_DEFS):
             if definition[oki66207.IDEF_DD] != oki66207.DD_FLAG_UNUSED:
                 if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ONE and self.ireg_dd != 1:
@@ -242,20 +245,19 @@ class oki66207_processor_t(idaapi.processor_t):
                 if match:
                     if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
                         self.ireg_dd = 0
-                        #MakeRptCmt(ea, "DD reset")
                     elif definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
                         self.ireg_dd = 1
-                        #MakeRptCmt(ea, "DD set")
                     else:
-                        pass
                         #MakeRptCmt(ea, "DD:{0}".format(self.ireg_dd))
+                        pass
                     split_sreg_range(ea, "dd", self.ireg_dd, SR_auto)
                     return (definition, index)
 
         return (None, -1)
 
     def _handle_offsets(self, current, insn):
-        print("_handle_offsets {0}".format(hex(insn.ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: _handle_offsets {0}".format(hex(insn.ea)))
         raw_mnem = current[oki66207.IDEF_MNEMONIC].split()
         op_idx = 1
         next_is_offset = False
@@ -281,7 +283,8 @@ class oki66207_processor_t(idaapi.processor_t):
         return insn
 
     def _fill_operands(self, ea, current, insn):
-        print("_fill_operands {0}".format(hex(ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: _fill_operands {0}".format(hex(ea)))
         itype = insn.itype
         features = oki66207.INSN_DEFS[itype][oki66207.IDEF_FEATURES]
         nb_of_params = len(current[oki66207.IDEF_OPCODES]) - 1
@@ -363,7 +366,8 @@ class oki66207_processor_t(idaapi.processor_t):
 
 
     def notify_ana(self, insn):
-        print("notify_ana {0}".format(hex(insn.ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: notify_ana {0}".format(hex(insn.ea)))
 
         opcode = get_bytes(insn.ea, 1)[0]
         current, index = self._get_instruction_from_op(insn.ea, opcode)
@@ -381,12 +385,25 @@ class oki66207_processor_t(idaapi.processor_t):
             exit(0)
 
         insn.size = len(current[0])
-        print("                insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
+        #print("                insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
+
+        try:
+            if current[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
+                current_cmt = GetCommentEx(insn.ea, 1)
+                if current_cmt == None or current != "DD set"
+                    MakeRptCmt(insn.ea, "DD reset")
+            elif current[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
+                current_cmt = GetCommentEx(insn.ea, 1)
+                if current_cmt == None or current != "DD reset"
+                    MakeRptCmt(insn.ea, "DD set")
+        except Exception as e:
+            print(e)
 
         return insn.size
 
     def _handle_out_insn_any(self, ctx, raw_mnem):
-        print("_handle_out_insn_any {0}".format(hex(ctx.insn.ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: _handle_out_insn_any {0}".format(hex(ctx.insn.ea)))
         insn = ctx.insn
         itype = insn.itype
 
@@ -467,7 +484,8 @@ class oki66207_processor_t(idaapi.processor_t):
 
 
     def notify_out_insn(self, ctx):
-        print("notify_out_insn {0}".format(hex(ctx.insn.ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: notify_out_insn {0}".format(hex(ctx.insn.ea)))
 
         raw_mnem = oki66207.INSN_DEFS[ctx.insn.itype][oki66207.IDEF_MNEMONIC].split()
         ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
@@ -487,7 +505,8 @@ class oki66207_processor_t(idaapi.processor_t):
 	return oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
 
     def notify_out_operand(self, ctx, op):
-        print("notify_out_operand {0}".format(hex(ctx.insn.ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: notify_out_operand {0}".format(hex(ctx.insn.ea)))
         # I only used this function for immediate. Probably not the best way to do
         ctx.out_value(op)
         return True
@@ -537,7 +556,8 @@ class oki66207_processor_t(idaapi.processor_t):
         return insn
 
     def notify_emu(self, insn):
-        print("notify_emu {0}".format(hex(insn.ea)))
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: notify_emu {0}".format(hex(insn.ea)))
 
         features = insn.get_canon_feature()
         mnemonic = oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
