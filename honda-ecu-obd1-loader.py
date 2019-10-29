@@ -36,8 +36,12 @@ def _init_memory():
         print("Creating {0} at {1}".format(elt[1], hex(elt[0])))
         MakeUnkn(elt[0], 2)
         create_data(elt[0], FF_WORD, 2, 0)
-        MakeName(elt[0], elt[1])
+        MakeName(elt[0], "{0}_tbl_entry".format(elt[1]))
         OpOff(elt[0], 0, 0)
+        int_begin = get_many_bytes(elt[0], 2)
+        int_begin = (ord(int_begin[1]) << 8) + ord(int_begin[0])
+        MakeCode(int_begin)
+        MakeName(int_begin, elt[1])
 
     vcal = 0
     while vcal < 8:
@@ -45,9 +49,13 @@ def _init_memory():
         print("Creating VCAL {0} at {1}".format(vcal, hex(addr)))
         MakeUnkn(addr, 2)
         create_data(addr, FF_WORD, 2, 0)
-        MakeName(addr, "vcal_{0}".format(vcal))
+        MakeName(addr, "vcal_{0}_tbl_entry".format(vcal))
         OpOff(addr, 0, 0)
         vcal += 1
+        int_begin = get_many_bytes(addr, 2)
+        int_begin = (ord(int_begin[1]) << 8) + ord(int_begin[0])
+        MakeCode(int_begin)
+        MakeName(int_begin, "vcal_{0}".format(vcal))
 
     '''
     pr = 0

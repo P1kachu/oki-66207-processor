@@ -15,8 +15,10 @@ testing will be done with such firmwares.
 ### Files
 
 - `honda-ecu-obd1-loader.py` detects that a binary is a Honda ECU (should detect, at some point, when I know the header. Right now accepts anything)
+   --> Should be added to the /loaders folder
 - `oki-66207-processor.py` is the processor file
-- (`oki66207.py` is a temporary split of the above file)
+   --> (`oki66207.py` is a temporary split of the above file)
+   --> Should be added to the /procs folder, with oki66207.py
 - `./helpers/op_to_array.py asm662-66207.op.modified` to extract instructions from asm662 files
 
 ### Misc

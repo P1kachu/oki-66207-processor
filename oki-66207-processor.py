@@ -13,7 +13,11 @@ Misc information from 66201 spec:
 
 '''
 
+''' Print a message at each function entry (debugging) '''
 FUNCTIONS_ENTRY_PRINT = False
+
+''' Print offset as off(xx) rather than trying to compute an immediate out of potentially erroneous page computations '''
+PRINT_OFFSET_LIKE_DASM662 = True
 
 class oki66207_processor_t(idaapi.processor_t):
     # IDA id (> 0x8000 for third party)
@@ -70,7 +74,7 @@ class oki66207_processor_t(idaapi.processor_t):
         'name': plnames[0],
 
         # array of automatically generated header lines they appear at the start of disassembled text (optional)
-        'header': [plnames[0], "Experimental for Honda OBD1 ECUs", "Draft by Stanislas Lejay"],
+        'header': [plnames[0], "Experimental for Honda OBD1 ECUs", "Draft by Stanislas Lejay (P1kachu)"],
 
         # org directive
         'origin': ".org",
@@ -217,47 +221,82 @@ class oki66207_processor_t(idaapi.processor_t):
     # ----------------------------------------------------------------------
 
     def _is_imm(self, val):
+        '''
+        Immediates are limited to two bytes. Instructions definition uses
+        placeholders like IMM16 or REL8 that are then converted to values
+        bigger than 0x10000 to be reinterpreted later on into immediates
+        depending on the instruction decoding process
+        '''
         return val > oki66207.SPECIAL_IMM_VALUE
 
     def _get_current_page(self, ea):
+        '''
+        For offset computation when PRINT_OFFSET_LIKE_DASM662 is False
+        Not verified, based on my understanding
+        '''
         return (ea / 0x100) * 0x100
 
     def _get_instruction_from_op(self, ea, op):
+        '''
+        Find the instruction corresponding to the bytecode
+        '''
+
         if FUNCTIONS_ENTRY_PRINT:
             print("DEBUG: _get_instruction_from_op {0}".format(hex(ea)))
+
         for index, definition in enumerate(oki66207.INSN_DEFS):
             if definition[oki66207.IDEF_DD] != oki66207.DD_FLAG_UNUSED:
+                # DD is used in instruction decoding. Two instructions can have
+                # the same bytecode but different interpretation depending on
+                # the value of DD
+                # If the DD flag is used in one instruction, before trying to
+                # match said instruction to the bytecode, we verify that the DD
+                # flag has the correct value
                 if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ONE and self.ireg_dd != 1:
                     continue
                 if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ZERO and self.ireg_dd != 0:
                     continue
+
+            # Here we compare the bytecode to the instruction, byte by byte.
+            # Placeholders like IMM16 or REL8 are skipped
             if definition[oki66207.IDEF_OPCODES][0] == ord(op):
                 match = True
                 nb_of_params = len(definition[oki66207.IDEF_OPCODES]) - 1
                 if nb_of_params:
                     params = get_bytes(ea + 1, nb_of_params)
                     for p in range(nb_of_params):
-                        #print(definition[oki66207.IDEF_OPCODES][p + 1],  ord(params[p]))
                         if not self._is_imm(definition[oki66207.IDEF_OPCODES][p + 1]) and definition[oki66207.IDEF_OPCODES][p + 1] != ord(params[p]):
                             match = False
                             break
 
+                # If the instructio match, we verify if it has any impact on the DD flag. If so, we change it accordingly.
+                # TODO: Actual DD flag is global and IDA multithreading fucks it up. Need to find a cleaner way.
                 if match:
                     if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
                         self.ireg_dd = 0
                     elif definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
                         self.ireg_dd = 1
                     else:
-                        #MakeRptCmt(ea, "DD:{0}".format(self.ireg_dd))
+                        #MakeComm(ea, "DD:{0}".format(self.ireg_dd))
                         pass
                     split_sreg_range(ea, "dd", self.ireg_dd, SR_auto)
+
+                    # Return the matched instruction
                     return (definition, index)
 
         return (None, -1)
 
     def _handle_offsets(self, current, insn):
+        '''
+        used if PRINT_OFFSET_LIKE_DASM662 is set to False
+        Tries to convert offsets into immediates
+        Not verified, based on my understanding
+        '''
+
         if FUNCTIONS_ENTRY_PRINT:
             print("DEBUG: _handle_offsets {0}".format(hex(insn.ea)))
+
+
         raw_mnem = current[oki66207.IDEF_MNEMONIC].split()
         op_idx = 1
         next_is_offset = False
@@ -283,6 +322,10 @@ class oki66207_processor_t(idaapi.processor_t):
         return insn
 
     def _fill_operands(self, ea, current, insn):
+        '''
+        Fill operands used by notify_out_operand by reading the opcodes
+        '''
+
         if FUNCTIONS_ENTRY_PRINT:
             print("DEBUG: _fill_operands {0}".format(hex(ea)))
         itype = insn.itype
@@ -292,15 +335,20 @@ class oki66207_processor_t(idaapi.processor_t):
         if nb_of_params == 0:
             return
 
+        # Get params as array of bytes (removed the initial opcode used in the
+        # decoding of the instruction [itype])
         params = get_bytes(ea + 1, nb_of_params)
         params_byte = []
         for i in range(nb_of_params):
             params_byte.append(ord(params[i]))
         params = params_byte
 
+        # First Op will hold the total number of Ops (I didn't look for any
+        # clever way to do it)
         op_idx = 1
         p = 0
         while p < nb_of_params:
+            # param is a placeholder, replace with correct value from byte
             if self._is_imm(current[oki66207.IDEF_OPCODES][p + 1]):
                 if current[oki66207.IDEF_OPCODES][p + 1] == oki66207.SIGNEDIMM8:
                     insn.Operands[op_idx].type = o_imm
@@ -327,6 +375,7 @@ class oki66207_processor_t(idaapi.processor_t):
 		    insn.Operands[op_idx].value = (params[p + 1] << 8) + params[p]
                     p += 1
 
+                # Handle case where a 16 bits value is split over two bytes
                 elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16H, oki66207.IMM16Ha, oki66207.IMM16Hb):
 
                     if current[oki66207.IDEF_OPCODES][p + 2] not in (oki66207.IMM16L, oki66207.IMM16La, oki66207.IMM16Lb):
@@ -345,18 +394,27 @@ class oki66207_processor_t(idaapi.processor_t):
                     return 1
 
                 op_idx += 1
+
+            else:
+                pass
+
             p += 1
+
+        # Op1 holds the total number of Ops
         insn.Operands[0].value = op_idx
 
+        # If the instruction is a jump, modify parameter accordingly
         if (features & CF_JUMP):
             if oki66207.INSN_DEFS[itype][oki66207.IDEF_CF] == oki66207.CF_FLAG_CONDITIONAL_JUMP:
                 insn = self._handle_conditional_jumps(insn, current[oki66207.IDEF_OPCODES][0])
             else:
                 insn = self._handle_jumps(insn, current[oki66207.IDEF_OPCODES][0])
 
-        if "off" in current[oki66207.IDEF_MNEMONIC]:
+        # If PRINT_OFFSET_LIKE_DASM662 is False, modify the value accordingly
+        if not PRINT_OFFSET_LIKE_DASM662 and "off" in current[oki66207.IDEF_MNEMONIC]:
             insn = self._handle_offsets(current, insn)
 
+        # If a value is bigger than a byte, turn it into a word
         for x in range(insn.Operands[0].value):
             if insn.Operands[x + 1].value > 0xff:
                 insn.Operands[x + 1].dtype = dt_word
@@ -366,6 +424,11 @@ class oki66207_processor_t(idaapi.processor_t):
 
 
     def notify_ana(self, insn):
+        '''
+        Called when bytecode needs to be turned into instructions
+        (MakeCode basically ?)
+        '''
+        # TODO: Continue documenting from here
         if FUNCTIONS_ENTRY_PRINT:
             print("DEBUG: notify_ana {0}".format(hex(insn.ea)))
 
@@ -373,7 +436,7 @@ class oki66207_processor_t(idaapi.processor_t):
         current, index = self._get_instruction_from_op(insn.ea, opcode)
 
         if current == None:
-            print("ERROR - notify_ana: Instruction not found: {0} ({1})".format(ord(opcode), hex(ord(opcode))))
+            print("{2} ERROR - notify_ana: Instruction not found: {0} ({1})".format(ord(opcode), hex(ord(opcode)), hex(insn.ea).replace("L", "")))
             insn.itype = 0x5
             insn.size = len(oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_OPCODES])
             return insn.size # Instruction not found
@@ -387,17 +450,20 @@ class oki66207_processor_t(idaapi.processor_t):
         insn.size = len(current[0])
         #print("                insn: {0} (size: {1}) - {2}".format(insn.itype, insn.size, current))
 
+        '''
+        # Freezes IDA for some reason, randomly
         try:
             if current[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
-                current_cmt = GetCommentEx(insn.ea, 1)
-                if current_cmt == None or current != "DD set"
-                    MakeRptCmt(insn.ea, "DD reset")
+                current_cmt = GetCommentEx(insn.ea, 0)
+                if current_cmt == None or current_cmt != "DD set":
+                    MakeComm(insn.ea, "DD reset")
             elif current[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
-                current_cmt = GetCommentEx(insn.ea, 1)
-                if current_cmt == None or current != "DD reset"
-                    MakeRptCmt(insn.ea, "DD set")
+                current_cmt = GetCommentEx(insn.ea, 0)
+                if current_cmt == None or current_cmt != "DD reset":
+                    MakeComm(insn.ea, "DD set")
         except Exception as e:
             print(e)
+        '''
 
         return insn.size
 
@@ -406,6 +472,7 @@ class oki66207_processor_t(idaapi.processor_t):
             print("DEBUG: _handle_out_insn_any {0}".format(hex(ctx.insn.ea)))
         insn = ctx.insn
         itype = insn.itype
+        offset_now = False
 
         operand_index = 1 # The first Op is used to keep the number of params
         for elt in raw_mnem[1:]: # We skip the first word
@@ -416,20 +483,19 @@ class oki66207_processor_t(idaapi.processor_t):
                 as_int = int(elt)
                 insn.Op6.value = as_int # Op6 will never be used, so we use it to call ctx.out_value
                 ctx.out_value(insn.Op6)
+
             except Exception as e:
                 # Not a number
                 if elt == "a": # Register A
                     ctx.out_register('A')
 
                 elif "off" in elt: # Offset in page
-                    #ctx.out_keyword("off ")
-                    '''
-                    insn.Op6.value = insn.ea + insn.size # Op6 will never be used, so we use it to call ctx.out_value
-                    ctx.out_value(insn.Op6)
-                    ctx.out_char(" ")
-                    ctx.out_char("+")
-                    ctx.out_char(" ")
-                    '''
+                    if PRINT_OFFSET_LIKE_DASM662:
+                        ctx.out_keyword("off(")
+                        offset_now = True
+                    else:
+                        pass
+
                     continue
 
                 elif "imm" in elt or "rel" in elt: # An immediate that needs to be output from operands
@@ -450,6 +516,11 @@ class oki66207_processor_t(idaapi.processor_t):
                         ctx.out_symbol(']')
 
                     elif "." in elt: # A bit in the immediate
+
+                        if PRINT_OFFSET_LIKE_DASM662 and offset_now:
+                            ctx.out_keyword(")")
+                            offset_now = False
+
                         ctx.out_symbol('.')
                         insn.Op6.value = int(elt[-1:])  # Op6 will never be used, so we use it to call ctx.out_value
                         ctx.out_value(insn.Op6)
@@ -462,12 +533,22 @@ class oki66207_processor_t(idaapi.processor_t):
                     else:
                         bit = -1
                         if "." in elt:
+
+                            if PRINT_OFFSET_LIKE_DASM662 and offset_now:
+                                ctx.out_keyword(")")
+                                offset_now = False
+
                             bit = int(elt[-1:])
                             elt = elt[:-2]
 
                         if "r" in elt or elt in ["dp", "x1", "x2", "usp", "lrb", "psw", "pswh", "pswl", "ssp", "c"]: # Another register
                             ctx.out_register(elt.upper())
                             if bit > -1:
+
+                                if PRINT_OFFSET_LIKE_DASM662 and offset_now:
+                                    ctx.out_keyword(")")
+                                    offset_now = False
+
                                 ctx.out_symbol('.')
                                 insn.Op6.value = int(bit)  # Op6 will never be used, so we use it to call ctx.out_value
                                 ctx.out_value(insn.Op6)
@@ -475,6 +556,9 @@ class oki66207_processor_t(idaapi.processor_t):
                         else:
                             ctx.out_register("unknown_reg_{0}".format(elt.upper()))
 
+            if PRINT_OFFSET_LIKE_DASM662 and offset_now:
+                ctx.out_keyword(")")
+                offset_now = False
 
 
             if elt != raw_mnem[-1]:
@@ -491,14 +575,18 @@ class oki66207_processor_t(idaapi.processor_t):
         ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
 
         if "vcal" in raw_mnem[0]:
-            ctx.out_keyword("vcal_{0}".format(raw_mnem[1]))
+            ctx.out_keyword("vcal_{0}_tbl_entry".format(raw_mnem[1]))
         elif "brk" in raw_mnem[0]:
-            ctx.out_keyword("int_brk")
+            ctx.out_keyword("int_brk_tbl_entry")
         else:
             self._handle_out_insn_any(ctx, raw_mnem)
 
         ctx.set_gen_cmt()
 	ctx.flush_outbuf()
+
+        if ctx.insn.get_canon_feature() & CF_JUMP:
+            OpOff(ctx.insn.ea, 0, 0)
+
         return True
 
     def notify_get_autocmt(self, insn):
@@ -518,13 +606,15 @@ class oki66207_processor_t(idaapi.processor_t):
         elif itype == 0xb0: # jmp [imm16[x2]]
             pass # TODO
         elif itype == 0xb3: # jmp [signedimm8[usp]]
-            pass# TODO
+            pass # TODO
         elif itype == 0xb4: # jmp [off imm8]
-            insn.Operands[1].value += insn.ea + insn.size
+            insn.Operands[1].addr = insn.Operands[1].value + insn.ea + insn.size + 2
+            insn.Operands[1].value = insn.Operands[1].addr
         elif itype == 0xb5: # jmp [imm8]
             pass
         elif itype == 0xcb: # sj rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            insn.Operands[1].addr = insn.Operands[1].value + insn.ea + insn.size + 2
+            insn.Operands[1].value = insn.Operands[1].addr
             pass # TODO
 
         insn.Operands[1].type = o_near
@@ -534,24 +624,41 @@ class oki66207_processor_t(idaapi.processor_t):
 
     def _handle_conditional_jumps(self, insn, itype):
 
+        jmp_type = 0
+
         if itype == 0x30: # jrnz dp, rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            jmp_type = 1
         elif itype == 0xc8: # jgt rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            jmp_type = 1
         elif itype == 0xc9: # jeq rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            jmp_type = 1
         elif itype == 0xca: # jlt rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            jmp_type = 1
         elif itype == 0xcd: # jge rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            jmp_type = 1
         elif itype == 0xce: # jne rel8
-            insn.Operands[1].value += insn.ea + insn.size
+            jmp_type = 1
         elif itype == 0xcf: # jle rel8
-            insn.Operands[1].value += insn.ea + insn.size
-        elif itype > 0xd8 and itype < 0xe0: # jbr off imm8.x, rel8
-            insn.Operands[2].value += insn.ea + insn.size # Verify
-        elif itype > 0xe8 and itype < 0xf0: # jbs off imm8.x, rel8
-            insn.Operands[2].value += insn.ea + insn.size # Verify
+            jmp_type = 1
+        elif itype >= 0xd8 and itype < 0xe0: # jbr off imm8.x, rel8
+            jmp_type = 2
+        elif itype >= 0xe8 and itype < 0xf0: # jbs off imm8.x, rel8
+            jmp_type = 2
+
+        if jmp_type == 1:
+            if insn.Operands[1].value > 128:
+                insn.Operands[1].value -= 256
+            insn.Operands[1].addr = insn.Operands[1].value + insn.ea + insn.size + 2
+            insn.Operands[1].value = insn.Operands[1].addr
+            insn.Operands[1].type = o_near
+        elif jmp_type == 2:
+            if insn.Operands[2].value > 128:
+                insn.Operands[2].value -= 256
+            insn.Operands[2].addr = insn.Operands[2].value + insn.ea + insn.size + 3 # Verify
+            insn.Operands[2].value = insn.Operands[2].addr
+            insn.Operands[2].type = o_near
+        else:
+            print("WARNING: _handle_conditional_jumps: Invalid conditionnal jump: {0}".format(hex(itype)))
 
         return insn
 
@@ -570,18 +677,18 @@ class oki66207_processor_t(idaapi.processor_t):
         # TODO: EMU VCALLS
 
         if (features & CF_JUMP):
+
+            """ If we are not in a conditional jump, we should not follow with the next instruction """
             if oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_CF] != oki66207.CF_FLAG_CONDITIONAL_JUMP:
 	        flow = False
 
-	    dest = insn.Operands[insn.Op1.value - 1].value
+	    dest = insn.Operands[insn.Op1.value - 1].addr
 	    add_cref(insn.ea, dest, fl_JN)
-            OpOff(insn.ea, 0, 0)
             #print("Creating jump cref at {0} towards {1}".format(hex(insn.ea), hex(dest)))
 
         elif (features & CF_CALL):
-	    dest = insn.Op2.value
+	    dest = insn.Op2.addr
 	    add_cref(insn.ea, dest, fl_CN)
-            OpOff(insn.ea, 0, 0)
             #print("Creating call cref at {0} towards {1}".format(hex(insn.ea), hex(dest)))
 
 	if flow:
