@@ -1,6 +1,5 @@
 # OKI 66207 Processor
 # (c) Stanislas Lejay
-#
 
 # For lisibility
 from oki66207 import *
@@ -13,10 +12,11 @@ Misc information from 66201 spec:
 
 '''
 
-''' Print a message at each function entry (debugging) '''
+# Print a message at each function entry (debugging)
 FUNCTIONS_ENTRY_PRINT = False
 
-''' Print offset as off(xx) rather than trying to compute an immediate out of potentially erroneous page computations '''
+# Print offset as off(xx) rather than trying to compute an immediate out of
+# potentially erroneous page computations
 PRINT_OFFSET_LIKE_DASM662 = True
 
 class oki66207_processor_t(idaapi.processor_t):
@@ -379,8 +379,7 @@ class oki66207_processor_t(idaapi.processor_t):
                 elif current[oki66207.IDEF_OPCODES][p + 1] in (oki66207.IMM16H, oki66207.IMM16Ha, oki66207.IMM16Hb):
 
                     if current[oki66207.IDEF_OPCODES][p + 2] not in (oki66207.IMM16L, oki66207.IMM16La, oki66207.IMM16Lb):
-                        print("ERROR - _fill_operands: IMM16H found without IMM16L: {0}".format(hex(ea), current, [hex(x) for x in params]))
-                        print("Should not happen")
+                        warning("ERROR - _fill_operands: IMM16H found without IMM16L: {0}".format(hex(ea), current, [hex(x) for x in params]))
                         return 1
 
                     insn.Operands[op_idx].type = o_near
@@ -389,8 +388,7 @@ class oki66207_processor_t(idaapi.processor_t):
                     p += 1
 
                 else:
-                    print(current)
-                    print("ERROR - _fill_operands: Unknown operand: {0}".format(current[oki66207.IDEF_OPCODES][p + 1]))
+                    warning("ERROR - _fill_operands: Unknown operand: {0} ({1})".format(current[oki66207.IDEF_OPCODES][p + 1], current))
                     return 1
 
                 op_idx += 1
@@ -438,7 +436,7 @@ class oki66207_processor_t(idaapi.processor_t):
         # that the instruction is invalid or that the DD flag is incorrect. For
         # now, we just replace it with a fake "illegal" instruction
         if current == None:
-            print("{2} ERROR - notify_ana: Instruction not found: {0} ({1})".format(ord(opcode), hex(ord(opcode)), hex(insn.ea).replace("L", "")))
+            print("{2} Warning - notify_ana: Instruction not found: {0} ({1})".format(ord(opcode), hex(ord(opcode)), hex(insn.ea).replace("L", "")))
             insn.itype = 0x5
             insn.size = len(oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_OPCODES])
             return insn.size # Instruction not found
@@ -448,7 +446,7 @@ class oki66207_processor_t(idaapi.processor_t):
         insn.itype = index
 
         if self._fill_operands(insn.ea, current, insn):
-            print("ERROR: _fill_operands returned != 0")
+            warning("ERROR: _fill_operands returned != 0")
             exit(0) # This really shouldn't happen
 
         insn.size = len(current[0])
@@ -496,8 +494,7 @@ class oki66207_processor_t(idaapi.processor_t):
                 insn.Op6.value = as_int # Op6 will never be used, so we use it to call ctx.out_value
                 ctx.out_value(insn.Op6)
 
-            except Exception as e:
-                print(e)
+            except ValueError as e:
                 # Not a number
                 if elt == "a": # Register A
                     ctx.out_register('A')

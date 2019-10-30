@@ -4,5 +4,5 @@ TODO
 - Do a proper pass for the instruction IDA Features (./helpers/asm662-66207.op.modified)
 - Differentiate addresses from immediates
 - Add support for DD/CF bits (to be able to control them from the interface, like m7700 M flag)
+- Add proper support for DD flag, global variable is not good
 - Check all instructions and compare with dasm662
-- Document
