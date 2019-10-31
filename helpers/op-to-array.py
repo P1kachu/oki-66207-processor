@@ -71,6 +71,7 @@ def to_control_flow_flag(flag):
 
 
 def pprint(output):
+    print("    INSN_DEFS = [")
     for i in range(len(output)):
         #print(output[i][1][0]) # opcode
         opcodes = ""
@@ -81,7 +82,7 @@ def pprint(output):
                 else:
                     opcodes += "{0}, ".format('0x{:04x}'.format(op))
             except Exception as e:
-                print("!!!!!!!", e, output[i])
+                #print("!!!!!!!", e, output[i])
                 opcodes += "{0}, ".format(op)
         # Opcodes, number of opcodes in total, DD flag, control flow (see explanation on top), mnemonic
         dd_flag = to_dd_flag(output[i][2][0])
@@ -90,11 +91,76 @@ def pprint(output):
         string = "        ([" + opcodes + "], " + dd_flag + ", " + cf_flag + ", \"" + output[i][0] + "\", " + ida_features +"),"
         print(string)
 
+    print("    ]")
     #print(len(output))
 
+def _handle_special_double_movb_rn_case(output):
+    for n1 in range(8):
+        for n2 in range(8):
+            instruction = "mov er{0}, er{1}".format(n1, n2)
+            opcodes = [0x20 + n2, 0x48 + n1]
+            dd_flag = "DD_FLAG_UNUSED"
+            cf_flag = "CF_FLAG_NEXT"
+            ida_features = "CF_CHG1|CF_USE2"
+            output.append((instruction, opcodes, flags_affecting_execution, initial_line, ida_features))
+
+    return output
+
+def _handle_special_double_mov_ern_case(output):
+    for n1 in range(8):
+        for n2 in range(8):
+            instruction = "movb r{0}, r{1}".format(n1, n2)
+            opcodes = [0x44 + n2, 0x48 + n1]
+            dd_flag = "DD_FLAG_UNUSED"
+            cf_flag = "CF_FLAG_NEXT"
+            ida_features = "CF_CHG1|CF_USE2"
+            output.append((instruction, opcodes, flags_affecting_execution, initial_line, ida_features))
+
+    return output
+
+def _handle_special_double_mb_rnn_c_case(output):
+    for n1 in range(8):
+        for n2 in range(8):
+            instruction = "mb r{0}.{1}, c".format(n1, n2)
+            opcodes = [0x20 + n1, 0x28 + n2]
+            dd_flag = "DD_FLAG_UNUSED"
+            cf_flag = "CF_FLAG_NEXT"
+            ida_features = "CF_CHG1|CF_USE2"
+            output.append((instruction, opcodes, flags_affecting_execution, initial_line, ida_features))
+
+    return output
+
+def _handle_special_double_mb_c_rnn_case(output):
+    for n1 in range(8):
+        for n2 in range(8):
+            instruction = "mb r{1}.{0}, c".format(n2, n1)
+            opcodes = [0x20 + n1, 0x38 + n2]
+            dd_flag = "DD_FLAG_UNUSED"
+            cf_flag = "CF_FLAG_NEXT"
+            ida_features = "CF_CHG1|CF_USE2"
+            output.append((instruction, opcodes, flags_affecting_execution, initial_line, ida_features))
+
+    return output
+
+
 with open(sys.argv[1], "r") as f:
-    output.append(("ILLEGAL", [0x5], "UN", "Placeholder", 0)) # Debug for now
+    output.append(("ILLEGAL", [0x5], "UN", "Placeholder", str(0))) # Debug for now
     for line in f.readlines():
+
+        if "MB rN.n, C" in line:
+            output = _handle_special_double_mb_rnn_c_case(output)
+            continue
+        if "MB C, rN.n" in line:
+            output = _handle_special_double_mb_c_rnn_case(output)
+            continue
+
+        if "MOV erN, erN'" in line:
+            output = _handle_special_double_mov_ern_case(output)
+            continue
+
+        if "MOVB rN, rN'" in line:
+            output = _handle_special_double_movb_rn_case(output)
+            continue
 
         line = line.rstrip().replace("\t", "")
         if line == "" or line.startswith(";"):

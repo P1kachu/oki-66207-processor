@@ -227,7 +227,7 @@ class oki66207_processor_t(idaapi.processor_t):
         bigger than 0x10000 to be reinterpreted later on into immediates
         depending on the instruction decoding process
         '''
-        return val > oki66207.SPECIAL_IMM_VALUE
+        return val >= oki66207.SPECIAL_IMM_VALUE
 
     def _get_current_page(self, ea):
         '''
@@ -585,8 +585,10 @@ class oki66207_processor_t(idaapi.processor_t):
         Display instructions on the screen
         '''
 
+        insn = ctx.insn
+
         if FUNCTIONS_ENTRY_PRINT:
-            print("DEBUG: notify_out_insn {0}".format(hex(ctx.insn.ea)))
+            print("DEBUG: notify_out_insn {0}".format(hex(insn.ea)))
 
         raw_mnem = oki66207.INSN_DEFS[ctx.insn.itype][oki66207.IDEF_MNEMONIC].split()
         ctx.out_custom_mnem(raw_mnem[0]) # Output the instruction type
@@ -597,6 +599,18 @@ class oki66207_processor_t(idaapi.processor_t):
             ctx.out_keyword("int_brk_tbl_entry")
         else:
             self._handle_out_insn_any(ctx, raw_mnem)
+
+
+        '''
+        if (insn.get_canon_feature() & CF_JUMP):
+            seg = None
+            for n in xrange(get_segm_qty()):
+                seg = idaapi.getnseg(n)
+                if seg.startEA <= insn.ea and seg.endEA > insn.ea:
+                    break
+            print("OpOff({1}) = {0}".format(OpOff(insn.ea, 0, 0), hex(insn.ea).replace("L", "")))
+        '''
+
 
         ctx.set_gen_cmt()
 	ctx.flush_outbuf()
@@ -640,6 +654,8 @@ class oki66207_processor_t(idaapi.processor_t):
         elif itype == 0xb5: # jmp [imm8]
             pass
         elif itype == 0xcb: # sj rel8
+            if insn.Operands[1].value > 128:
+                insn.Operands[1].value -= 256
             insn.Operands[1].addr = insn.Operands[1].value + insn.ea + insn.size + 2
             insn.Operands[1].value = insn.Operands[1].addr
             pass # TODO
@@ -710,8 +726,6 @@ class oki66207_processor_t(idaapi.processor_t):
         if "psw," in mnemonic or "pswh," in mnemonic:
             #MakeRptCmt(insn.ea, "Might affect DD")
             pass
-
-        # TODO: EMU VCALLS
 
         # Handle jumps/calls destinations, and control flow
         if (features & CF_JUMP):
