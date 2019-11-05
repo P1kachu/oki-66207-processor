@@ -5,6 +5,8 @@ Work in progress for Honda ECUs.
 
 STILL IN VERY EARLY STAGE. It's a hack, basically.
 
+![img](./assets/screenshot.png)
+
 I used nios2.py and ht68fb560.py as basis for this project. It's my first time
 creating a processor module so there might be obvious mistake that I didn't
 see. Feel free to submit corrections. The target for this module is to be able
@@ -20,6 +22,12 @@ testing will be done with such firmwares.
    --> (`oki66207.py` is a temporary split of the above file)
    --> Should be added to the /procs folder, with oki66207.py
 - `./helpers/op_to_array.py asm662-66207.op.modified` to extract instructions from asm662 files
+
+### What's left
+
+See `TODO`
+
+If you know how to handle special processor flags in IDA/idapython, I'm curious (https://reverseengineering.stackexchange.com/q/22423/11827)
 
 ### Misc
 - Little endian architecture (https://mycomputerninja.com/~jon/www.pgmfi.org/twiki/bin/view/Library/LittleEndian.html)
