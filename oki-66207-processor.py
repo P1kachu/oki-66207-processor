@@ -220,6 +220,8 @@ class oki66207_processor_t(idaapi.processor_t):
 
     # ----------------------------------------------------------------------
 
+    dd_flag_set_lock = True
+
     DD_FLAG_MAPPING = {
         # ea: dd_value
         0: 0
@@ -243,17 +245,46 @@ class oki66207_processor_t(idaapi.processor_t):
         return (ea / 0x100) * 0x100
 
     def _get_current_ea_dd_flag(self, ea):
+        # This is kinda fucked up, I'm trying stuff but I can't say it will
+        # work for sure
+
+        # We already know the DD flag value for this address
         if ea in self.DD_FLAG_MAPPING:
             return self.DD_FLAG_MAPPING[ea]
         else:
-            # TODO: Check Xrefs first
+            # We don't know the DD flag for this address. Check if there is any
+            # Xrefs to it and if there is, what was the DD flag of the source
+            for addr in XrefsTo(ea):
+                if addr in self.DD_FLAG_MAPPING:
+                    self.DD_FLAG_MAPPING[ea] = self.DD_FLAG_MAPPING[addr]
+                    return self.DD_FLAG_MAPPING[addr]
+
+            # No Xrefs, iterate over each previous instruction and check the
+            # closest previous DD flag available
             for i in range(ea - 1, 0, -1):
                 if i in self.DD_FLAG_MAPPING:
                     self.DD_FLAG_MAPPING[ea] = self.DD_FLAG_MAPPING[i]
                     return self.DD_FLAG_MAPPING[i]
 
-    def _set_current_ea_dd_flag(self, ea, value):
+    def _set_current_ea_dd_flag(self, ea, value, force_change_if_already_exist, info_string):
+        if ea == 0:
+            return
+
+        while self.dd_flag_set_lock == False:
+            pass
+
+        self.dd_flag_set_lock = False
+
+        if ea in self.DD_FLAG_MAPPING:
+            if value != self.DD_FLAG_MAPPING[ea]:
+                if force_change_if_already_exist == False:
+                    self.dd_flag_set_lock = True
+                    return
+                print("Warning: _set_current_ea_dd_flag: changing the value of DD for {0} ({1})".format(hex(ea), info_string))
+
         self.DD_FLAG_MAPPING[ea] = value
+
+        self.dd_flag_set_lock = True
 
     def _get_instruction_from_op(self, ea, op):
         '''
@@ -270,7 +301,7 @@ class oki66207_processor_t(idaapi.processor_t):
                 # the value of DD
                 # If the DD flag is used in one instruction, before trying to
                 # match said instruction to the bytecode, we verify that the DD
-                # flag has the correct value
+                # flag has the correct value, else there is no reason to actually even try
                 if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ONE and self._get_current_ea_dd_flag(ea) != 1:
                     continue
                 if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_ZERO and self._get_current_ea_dd_flag(ea) != 0:
@@ -289,16 +320,17 @@ class oki66207_processor_t(idaapi.processor_t):
                             break
 
                 # If the instruction match, we verify if it has any impact on the DD flag. If so, we change it accordingly.
-                # TODO: Actual DD flag is global and IDA multithreading fucks it up. Need to find a cleaner way.
+                # FIXME: Working on DD flag and multithreading right now
                 if match:
                     if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
-                        self._set_current_ea_dd_flag(ea, 0)
+                        self._set_current_ea_dd_flag(ea, 0, True, "RESET DD at {0}".format(hex(ea)))
+                        #MakeComm(ea, "DD reset")
                     elif definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
-                        self._set_current_ea_dd_flag(ea, 1)
+                        self._set_current_ea_dd_flag(ea, 1, True, "SET DD at {0}".format(hex(ea)))
+                        #MakeComm(ea, "DD set")
                     else:
-                        #MakeComm(ea, "DD:{0}".format(self.ireg_dd))
+                        #MakeComm(ea, "DD:{0}".format(self._get_current_ea_dd_flag(ea)))
                         pass
-                    split_sreg_range(ea, "dd", self.ireg_dd, SR_auto)
 
                     # Return the matched instruction
                     return (definition, index)
@@ -452,17 +484,18 @@ class oki66207_processor_t(idaapi.processor_t):
         current, index = self._get_instruction_from_op(insn.ea, opcode)
 
         # If no instruction was found, try to change the DD flag temporarily
-        # TODO: verify if that's a good idea
+        # TODO: verify if that works
         if current == None:
-            original_dd = self.ireg_dd
-            self.ireg_dd = 0 if original_dd else 1
+            original_dd = self._get_current_ea_dd_flag(insn.ea)
+            new_dd = 0 if original_dd else 1
+            self._set_current_ea_dd_flag(insn.ea, new_dd, True, "INSTRUCTION NOT FOUND 1 ({0})".format(hex(insn.ea)))
             current, index = self._get_instruction_from_op(insn.ea, opcode)
 
             # If still no instruction was found for this particular bytecode,
             # it probably means that the instruction is invalid. For now, we just
             # replace it with a fake "illegal" instruction
             if current == None:
-                self.ireg_dd = original_dd
+                self._set_current_ea_dd_flag(insn.ea, original_dd, True, "INSTRUCTION NOT FOUND 2 ({0})".format(hex(insn.ea)))
                 print("{2} Warning - notify_ana: Instruction not found: {0} ({1})".format(ord(opcode), hex(ord(opcode)), hex(insn.ea).replace("L", "")))
                 insn.itype = 0x5
                 insn.size = len(oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_OPCODES])
@@ -770,11 +803,13 @@ class oki66207_processor_t(idaapi.processor_t):
 
 	    dest = insn.Operands[insn.Op1.value - 1].addr
 	    add_cref(insn.ea, dest, fl_JN)
+            self._set_current_ea_dd_flag(dest, self._get_current_ea_dd_flag(insn.ea), False, "fl_JN at {0}".format(hex(insn.ea)))
             #print("Creating jump cref at {0} towards {1}".format(hex(insn.ea), hex(dest)))
 
         elif (features & CF_CALL):
 	    dest = insn.Op2.addr
 	    add_cref(insn.ea, dest, fl_CN)
+            self._set_current_ea_dd_flag(dest, self._get_current_ea_dd_flag(insn.ea), False, "fl_CN at {0}".format(hex(insn.ea)))
             #print("Creating call cref at {0} towards {1}".format(hex(insn.ea), hex(dest)))
 
 	if flow:
