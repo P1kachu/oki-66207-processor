@@ -10,6 +10,16 @@ Misc information from 66201 spec:
     - DD (data bit) is 1 if using WORDS or 0 if using BYTES
     - 66207.op format (x1     -x2x3 x4): See ./helpers/op_to_array.py
 
+LRB:
+    - bits 15->12: always 0
+    - bits 12->5: current page
+    - bits 4->0: local registers base
+
+PSW:
+    - bits 15->3: ?
+    - bits 12: DD
+    - bits 2->0: SCB (System Control Base), current pointing register (PR)
+
 '''
 
 # Print a message at each function entry (debugging)
@@ -241,6 +251,7 @@ class oki66207_processor_t(idaapi.processor_t):
         '''
         For offset computation when PRINT_OFFSET_LIKE_DASM662 is False
         Not verified, based on my understanding
+        Should actually return the page specified in LRB
         '''
         return (ea / 0x100) * 0x100
 
@@ -485,6 +496,7 @@ class oki66207_processor_t(idaapi.processor_t):
 
         # If no instruction was found, try to change the DD flag temporarily
         # TODO: verify if that works
+        # UPDATE: Seems to be working ok
         if current == None:
             original_dd = self._get_current_ea_dd_flag(insn.ea)
             new_dd = 0 if original_dd else 1
@@ -710,11 +722,11 @@ class oki66207_processor_t(idaapi.processor_t):
         '''
 
         if itype == 0xb0: # jmp [imm16[x1]]
-            pass # TODO
+            pass
         elif itype == 0xb0: # jmp [imm16[x2]]
-            pass # TODO
+            pass
         elif itype == 0xb3: # jmp [signedimm8[usp]]
-            pass # TODO
+            pass
         elif itype == 0xb4: # jmp [off imm8]
             insn.Operands[1].addr = insn.Operands[1].value + insn.ea + insn.size + 2
             insn.Operands[1].value = insn.Operands[1].addr
@@ -725,7 +737,6 @@ class oki66207_processor_t(idaapi.processor_t):
                 insn.Operands[1].value -= 256
             insn.Operands[1].addr = insn.Operands[1].value + insn.ea + insn.size + 2
             insn.Operands[1].value = insn.Operands[1].addr
-            pass # TODO
 
         insn.Operands[1].type = o_near
 
@@ -775,6 +786,33 @@ class oki66207_processor_t(idaapi.processor_t):
 
         return insn
 
+    def _check_dd_when_psw_set(self, insn):
+        '''
+        If PSW or PSWH are modified, it means that DD might be affected. Try to
+        handle such cases.
+        '''
+        if FUNCTIONS_ENTRY_PRINT:
+            print("DEBUG: _check_dd_when_psw_set {0}".format(hex(insn.ea)))
+
+        mnemonic = oki66207.INSN_DEFS[insn.itype][oki66207.IDEF_MNEMONIC]
+
+        if "imm8" in mnemonic:
+            bit = (insn.Operands[insn.Op1.value - 1].value >> 5) & 1
+            if "andb" in mnemonic:
+                new_bit = bit & self._get_current_ea_dd_flag(insn.ea)
+                self._set_current_ea_dd_flag(insn.ea, new_bit, True, "psw & imm8 at {0}".format(hex(insn.ea)))
+            elif "orb" in mnemonic:
+                new_bit = bit | self._get_current_ea_dd_flag(insn.ea)
+                self._set_current_ea_dd_flag(insn.ea, new_bit, True, "psw & imm8 at {0}".format(hex(insn.ea)))
+            else:
+                print("_check_dd_when_psw_set: {0}".format(mnemonic))
+        #elif "imm16" in mnemonic:
+        #    bit = (insn.Operands[insn.Op1.value - 1].value >> 12) & 1
+        #    self._set_current_ea_dd_flag(insn.ea, bit, True, "psw+imm16 at {0}".format(hex(insn.ea)))
+        else:
+            warning("DEBUG: _check_dd_when_psw_set: case {0} not handled".format(mnemonic))
+
+
     def notify_emu(self, insn):
         '''
         Emulate instruction behaviors (workflow, DD flag, stuff like that)
@@ -789,10 +827,13 @@ class oki66207_processor_t(idaapi.processor_t):
         # flow tells wether controlflow should continue to the next instruction
 	flow = (features & CF_STOP) == 0
 
-        # TODO: EMU PSW accesses
+        # PSW contains the DD flag. Some instruction can be used to set/reset
+        # the DD flag by accessing PSW directly. Try to handle such cases.
         if "psw," in mnemonic or "pswh," in mnemonic:
-            #MakeRptCmt(insn.ea, "Might affect DD")
-            pass
+            if not "#imm8" in mnemonic:
+                warning("DEBUG: Need to handle this PSW: {0}".format(mnemonic))
+
+            self._check_dd_when_psw_set(insn)
 
         # Handle jumps/calls destinations, and control flow
         if (features & CF_JUMP):
@@ -831,7 +872,7 @@ class oki66207_processor_t(idaapi.processor_t):
             self.instruc.append({'name': mnemonic, 'feature': features})
         self.instruc_start = 0
         self.instruc_end = len(oki66207.INSN_DEFS)
-        self.icode_return = 0 # TODO: Check what would be good
+        self.icode_return = 0
         pass
 
     def init_registers(self):
@@ -840,7 +881,7 @@ class oki66207_processor_t(idaapi.processor_t):
         ireg_XXX constants
         '''
 
-        # TODO: Verify how to correctly choose registers
+        # TODO: Verify how to correctly use/choose registers
         # register names (non memory mapped)
         self.reg_names = [
             # "acc",
