@@ -291,7 +291,7 @@ class oki66207_processor_t(idaapi.processor_t):
                 if force_change_if_already_exist == False:
                     self.dd_flag_set_lock = True
                     return
-                print("Warning: _set_current_ea_dd_flag: changing the value of DD for {0} ({1})".format(hex(ea), info_string))
+                #print("{0}: Warning: _set_current_ea_dd_flag: changing the value of DD ({1})".format(hex(ea).replace("L", ""), info_string))
 
         self.DD_FLAG_MAPPING[ea] = value
 
@@ -334,10 +334,10 @@ class oki66207_processor_t(idaapi.processor_t):
                 # FIXME: Working on DD flag and multithreading right now
                 if match:
                     if definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_RESET:
-                        self._set_current_ea_dd_flag(ea, 0, True, "RESET DD at {0}".format(hex(ea)))
+                        self._set_current_ea_dd_flag(ea, 0, True, "RESET DD at {0} ({1})".format(hex(ea), definition[oki66207.IDEF_MNEMONIC]))
                         #MakeComm(ea, "DD reset")
                     elif definition[oki66207.IDEF_DD] == oki66207.DD_FLAG_SET:
-                        self._set_current_ea_dd_flag(ea, 1, True, "SET DD at {0}".format(hex(ea)))
+                        self._set_current_ea_dd_flag(ea, 1, True, "SET DD at {0} ({1})".format(hex(ea), definition[oki66207.IDEF_MNEMONIC]))
                         #MakeComm(ea, "DD set")
                     else:
                         #MakeComm(ea, "DD:{0}".format(self._get_current_ea_dd_flag(ea)))
@@ -494,9 +494,9 @@ class oki66207_processor_t(idaapi.processor_t):
         opcode = get_bytes(insn.ea, 1)[0]
         current, index = self._get_instruction_from_op(insn.ea, opcode)
 
-        # If no instruction was found, try to change the DD flag temporarily
+        # If no instruction was found, try to change the DD flag
         # TODO: verify if that works
-        # UPDATE: Seems to be working ok
+        # UPDATE: Seems to be working ok-ish
         if current == None:
             original_dd = self._get_current_ea_dd_flag(insn.ea)
             new_dd = 0 if original_dd else 1
@@ -790,6 +790,7 @@ class oki66207_processor_t(idaapi.processor_t):
         '''
         If PSW or PSWH are modified, it means that DD might be affected. Try to
         handle such cases.
+        TODO: Finish
         '''
         if FUNCTIONS_ENTRY_PRINT:
             print("DEBUG: _check_dd_when_psw_set {0}".format(hex(insn.ea)))

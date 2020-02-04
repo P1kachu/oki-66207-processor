@@ -115,10 +115,15 @@ def load_file(li, neflags, fmt):
     RenameSeg(0x00, "vect_tbl")
     print("Creating segment: ", AddSegEx(0x28, 0x38, 0, 0, saRelPara, scPub, flags)) # VCAL Table
     RenameSeg(0x28, "vcals")
-    print("Creating segment: ", AddSegEx(0x38, 0x4000, 0, 0, saRelPara, scPub, flags)) # ROM
-    RenameSeg(0x38, "rom")
-    print("Creating segment: ", AddSegEx(0x4000, 0xffff, 0, 0, saRelPara, scPub, flags)) # External Memory
-    RenameSeg(0x4000, "ext_mem")
+    if 0:
+        print("Creating segment: ", AddSegEx(0x38, 0x4000, 0, 0, saRelPara, scPub, flags)) # ROM
+        RenameSeg(0x38, "rom")
+        print("Creating segment: ", AddSegEx(0x4000, 0xffff, 0, 0, saRelPara, scPub, flags)) # External Memory
+        RenameSeg(0x4000, "ext_mem")
+    else:
+        print("Creating segment: ", AddSegEx(0x38, 0xffff, 0, 0, saRelPara, scPub, flags)) # ROM + External Memory overlap
+        RenameSeg(0x38, "rom")
+
 
     int_start = get_bytes(0x0, 2)
     int_start_addr = (ord(int_start[1]) << 8) + ord(int_start[0])
