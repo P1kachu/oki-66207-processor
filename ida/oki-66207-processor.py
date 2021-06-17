@@ -592,6 +592,9 @@ class oki66207_processor_t(idaapi.processor_t):
                     if insn.get_canon_feature() & CF_JUMP:
                         ctx.out_addr_tag(insn.Operands[operand_index].addr)
                     '''
+                    if "#" in elt:
+                        ctx.out_symbol("#")
+
 	            ctx.out_one_operand(operand_index)
                     operand_index += 1
 
