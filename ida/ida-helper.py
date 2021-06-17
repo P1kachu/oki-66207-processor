@@ -105,11 +105,22 @@ def make_loc_out_of_jumps(range_low, range_high):
 
                 op_index += 1
 
+        # Do the same for CALLS, and make the destination a function
+        if (features & CF_CALL):
+            op_index = 0
+            for x in insn.ops:
+                if x.type == o_near:
+                    destination = x.value
+                    op_offset(i, op_index, REF_OFF16)
+                    MakeFunction(destination)
+                    break
+                op_index += 1
+
         # Go to next address
         i += insn.size
         continue
 
 
 ################ Main
-#make_loc_out_of_jumps(0, 0x6000)
+make_loc_out_of_jumps(0, 0x6000)
 #define_p30_ecu_locations()

@@ -470,6 +470,9 @@ class oki66207_processor_t(idaapi.processor_t):
             else:
                 insn = self._handle_jumps(insn, current[oki66207.IDEF_OPCODES][0])
 
+        if (features & CF_CALL):
+            insn.Operands[1].type = o_near
+
         # If PRINT_OFFSET_LIKE_DASM662 is False, modify the value accordingly
         if not PRINT_OFFSET_LIKE_DASM662 and "off" in current[oki66207.IDEF_MNEMONIC]:
             insn = self._handle_offsets(current, insn)
