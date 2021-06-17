@@ -2,9 +2,9 @@ TODO
 ====
 
 - Do a proper pass for the instruction IDA Features (./helpers/asm662-66207.op.modified)
-- Differentiate addresses from immediates
+- Differentiate addresses from immediates (done using ida/ida-helper.py)
 - Add support for DD/CF bits (to be able to control them from the interface, like m7700 M flag)
 - Add proper support for DD flag (Ongoing)
 - Check all instructions and compare with dasm662
-- Verify how current/zero page addressing affects instructions
+- Verify how current/zero page addressing affects instructions (LRB register...)
 
