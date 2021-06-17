@@ -106,7 +106,7 @@ def make_loc_out_of_jumps(range_low, range_high):
                 op_index += 1
 
         # Do the same for CALLS, and make the destination a function
-        if (features & CF_CALL):
+        elif (features & CF_CALL):
             op_index = 0
             for x in insn.ops:
                 if x.type == o_near:
@@ -116,11 +116,23 @@ def make_loc_out_of_jumps(range_low, range_high):
                     break
                 op_index += 1
 
+        # Experimental: Mark all immediate in DATA as offsets
+        else:
+            op_index = 0
+            for x in insn.ops:
+                if x.value > 0x6000:
+                    op_offset(i, op_index, REF_OFF16)
+                op_index += 1
+
+
         # Go to next address
         i += insn.size
         continue
 
 
 ################ Main
+# Mark all the bytes in DATA as data
+for i in range(0x6000, 0x7fff):
+        create_data(i, FF_BYTE, 1, 0)
 make_loc_out_of_jumps(0, 0x6000)
-#define_p30_ecu_locations()
+define_p30_ecu_locations()
