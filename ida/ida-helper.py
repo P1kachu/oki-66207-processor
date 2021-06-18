@@ -3,9 +3,9 @@
 # in jump instructions, and things like this (I'll add more stuff if I need it
 # during reversing)
 
-import idaapi
 from idaapi import *
 from idautils import *
+
 
 def define_p30_ecu_locations():
     '''
@@ -132,7 +132,7 @@ def make_loc_out_of_jumps(range_low, range_high):
 
 ################ Main
 # Mark all the bytes in DATA as data
-for i in range(0x6000, 0x7fff):
-        create_data(i, FF_BYTE, 1, 0)
-make_loc_out_of_jumps(0, 0x6000)
-define_p30_ecu_locations()
+#for i in range(0x6000, 0x7fff):
+#        create_data(i, FF_BYTE, 1, 0)
+#make_loc_out_of_jumps(0, 0x6000)
+#define_p30_ecu_locations()
