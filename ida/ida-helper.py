@@ -131,10 +131,11 @@ def make_loc_out_of_jumps(range_low, range_high):
         i += insn.size
         continue
 
-def helper_find_code_or_data_that_match(all_of_this, min_range, max_range):
+def helper_find_code_or_data_that_match(all_of_this, min_range=MIN_RANGE, max_range=MAX_RANGE):
 
     '''
-    Find code/data in disassembly based on text representation only
+    Find code/data in disassembly based on text representation only (mnemonic,
+    comments, labels, anything)
     example:
 
         helper_find_code_or_data_that_match(["mb", "off("], 0, 6000)
@@ -145,7 +146,7 @@ def helper_find_code_or_data_that_match(all_of_this, min_range, max_range):
             0x724: mb      off(2bh).5, c ()
             0x78b: mb      off(1bh).7, c ()
             0x795: mb      off(1bh).6, c ()
-            0x1580: mb      off(27h).0, c# injector test bypass #2 (change to j label_159a(03 9a 15)) ()
+            0x1580: mb      off(27h).0, c# injector test bypass #2 ()
             0x158c: mb      off(27h).5, c ()
             ...
 
@@ -180,6 +181,7 @@ def helper_find_code_or_data_that_match(all_of_this, min_range, max_range):
 def comment_known_p30_bitvectors(min_range=MIN_RANGE, max_range=MAX_RANGE):
     '''
     Add comment to known bitvector values to help the disassembly (P30 ECU only)
+    (not optimized, takes a bit of time)
     '''
 
     for x in helper_find_code_or_data_that_match(["off(16h).4"], min_range, max_range):
@@ -236,7 +238,7 @@ def comment_known_p30_bitvectors(min_range=MIN_RANGE, max_range=MAX_RANGE):
     for x in helper_find_code_or_data_that_match(["off(27h).2"], min_range, max_range):
         MakeRptCmt(x[0], "byte_6019 (bitvector)")
 
-    for x in helper_find_code_or_data_that_match(["off(19h).1"], min_range, max_range):
+    for x in helper_find_code_or_data_that_match(["off(19h).4"], min_range, max_range):
         MakeRptCmt(x[0], "byte_601A (bitvector)")
 
 
@@ -251,5 +253,3 @@ def comment_known_p30_bitvectors(min_range=MIN_RANGE, max_range=MAX_RANGE):
 #make_loc_out_of_jumps(0, 0x6000)
 #define_p30_ecu_locations()
 #comment_known_p30_bitvectors()
-
-find_code_or_data_that_match(["27h).7"])
